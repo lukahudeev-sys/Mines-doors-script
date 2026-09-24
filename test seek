@@ -32,42 +32,52 @@ local function fixSeek(figure:Model)
 	local kiddoCrucifix = Instance.new("Sound",figure)
 	local kiddoKill = Instance.new("Sound",figure)
 	local kiddoLaugh = Instance.new("Sound",figure)
-	local originalMusic = figure.Parent:WaitForChild("SeekMusic")
-	local newerMusic = originalMusic:Clone()
-	originalMusic.Volume = 0
+	local seekMusic = figure.Parent:WaitForChild("SeekMusic")
+	local newerMusic = seekMusic:Clone()
+	seekMusic.Volume = 0
+	newerMusic.Name = "KiddoSeekMusic"
 	newerMusic.Parent = figure.Parent
+	newerMusic.Volume = seekMusic.Volume > 0 and seekMusic.Volume or 1
+	newerMusic.Looped = seekMusic.Looped
 
-	-- Load the local MP3 before the chase starts.
-	local musicAsset = "IndexellScripts/Assets/c00lkiddseek/kiddoMusic.mp3"
-	local ok, soundId = pcall(function()
-		return getcustomasset(musicAsset, true)
+	local musicPath = "IndexellScripts/Assets/c00lkiddseek/kiddoMusic.mp3"
+	local ok, assetId = pcall(function()
+		return getcustomasset(musicPath, true)
 	end)
 
-	if not ok or not soundId then
-		warn("Seek music: failed to load local MP3:", soundId)
+	if not ok or not assetId then
+		warn("Seek music: getcustomasset failed:", assetId)
 	else
-		newerMusic.SoundId = soundId
+		newerMusic.SoundId = assetId
 		newerMusic.TimePosition = 8.5
-		newerMusic.Looped = originalMusic.Looped
-		newerMusic.Volume = originalMusic.Volume
 
-		-- Keep the replacement music synchronized with SeekMusic.
-		originalMusic:GetPropertyChangedSignal("Playing"):Connect(function()
-			if originalMusic.Playing then
-				if not newerMusic.Playing then
-					newerMusic.TimePosition = 8.5
+		local function startMusic()
+			if newerMusic.SoundId == "" then
+				return
+			end
+			if not newerMusic.Playing then
+				local loaded = pcall(function()
+					if not newerMusic.IsLoaded then
+						newerMusic.Loaded:Wait()
+					end
+				end)
+				if loaded then
 					newerMusic:Play()
 				end
+			end
+		end
+
+		seekMusic:GetPropertyChangedSignal("Playing"):Connect(function()
+			if seekMusic.Playing then
+				startMusic()
 			else
-				if newerMusic.Playing then
-					newerMusic:Stop()
-				end
+				newerMusic:Stop()
 			end
 		end)
 
-		-- SeekMusic may already be playing when this function is connected.
-		if originalMusic.Playing then
-			newerMusic:Play()
+		-- If SeekMusic was already playing when this code ran.
+		if seekMusic.Playing then
+			startMusic()
 		end
 	end
 	
