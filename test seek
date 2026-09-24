@@ -32,24 +32,44 @@ local function fixSeek(figure:Model)
 	local kiddoCrucifix = Instance.new("Sound",figure)
 	local kiddoKill = Instance.new("Sound",figure)
 	local kiddoLaugh = Instance.new("Sound",figure)
-	local newerMusic = figure.Parent:WaitForChild("SeekMusic"):Clone()
-	figure.Parent:WaitForChild("SeekMusic").Volume = 0
+	local originalMusic = figure.Parent:WaitForChild("SeekMusic")
+	local newerMusic = originalMusic:Clone()
+	originalMusic.Volume = 0
 	newerMusic.Parent = figure.Parent
-	
-	figure.Parent:WaitForChild("SeekMusic"):GetPropertyChangedSignal("Playing"):Connect(function()
-		if figure.Parent:WaitForChild("SeekMusic").Playing == true then
-			if newerMusic.Playing == false then
-				newerMusic:Play()
-			end
-		else
-			newerMusic:Stop()
-		end
+
+	-- Load the local MP3 before the chase starts.
+	local musicAsset = "IndexellScripts/Assets/c00lkiddseek/kiddoMusic.mp3"
+	local ok, soundId = pcall(function()
+		return getcustomasset(musicAsset, true)
 	end)
-	
-	task.spawn(function()
-		newerMusic.SoundId = getcustomasset("IndexellScripts/Assets/c00lkiddseek/kiddoMusic.mp3",true)
+
+	if not ok or not soundId then
+		warn("Seek music: failed to load local MP3:", soundId)
+	else
+		newerMusic.SoundId = soundId
 		newerMusic.TimePosition = 8.5
-	end)
+		newerMusic.Looped = originalMusic.Looped
+		newerMusic.Volume = originalMusic.Volume
+
+		-- Keep the replacement music synchronized with SeekMusic.
+		originalMusic:GetPropertyChangedSignal("Playing"):Connect(function()
+			if originalMusic.Playing then
+				if not newerMusic.Playing then
+					newerMusic.TimePosition = 8.5
+					newerMusic:Play()
+				end
+			else
+				if newerMusic.Playing then
+					newerMusic:Stop()
+				end
+			end
+		end)
+
+		-- SeekMusic may already be playing when this function is connected.
+		if originalMusic.Playing then
+			newerMusic:Play()
+		end
+	end
 	
 	kiddoCrucifix.Name = "kiddoCrucifix"
 	kiddoCrucifix.Volume = 4
