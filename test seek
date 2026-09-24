@@ -1,0 +1,175 @@
+if not isfolder("IndexellScripts") then
+	makefolder("IndexellScripts")
+end
+if not isfolder("IndexellScripts/Assets") then
+	makefolder("IndexellScripts/Assets")
+end
+if not isfolder("IndexellScripts/Assets/c00lkiddseek") then
+	makefolder("IndexellScripts/Assets/c00lkiddseek")
+end
+
+if not isfile("IndexellScripts/Assets/c00lkiddseek/crucifixKiddo.mp3") then
+	writefile("IndexellScripts/Assets/c00lkiddseek/crucifixKiddo.mp3", game:HttpGet("https://github.com/IdkMyNameLoll/OtherAssets/raw/refs/heads/main/kiddoSoundsCrucifixed.mp3"))
+end
+
+if not isfile("IndexellScripts/Assets/c00lkiddseek/kiddoKill.mp3") then
+	writefile("IndexellScripts/Assets/c00lkiddseek/kiddoKill.mp3", game:HttpGet("https://github.com/IdkMyNameLoll/OtherAssets/raw/refs/heads/main/kiddoKill.mp3"))
+end
+
+if not isfile("IndexellScripts/Assets/c00lkiddseek/kiddoLaugh.mp3") then
+	writefile("IndexellScripts/Assets/c00lkiddseek/kiddoLaugh.mp3", game:HttpGet("https://github.com/IdkMyNameLoll/OtherAssets/raw/refs/heads/main/kiddoLaugh.mp3"))
+end
+
+if not isfile("IndexellScripts/Assets/c00lkiddseek/kiddoMusic.mp3") then
+	writefile("IndexellScripts/Assets/c00lkiddseek/kiddoMusic.mp3", game:HttpGet("https://github.com/lukahudeev-sys/Mines-doors-script/blob/main/Doors-on-Budget-OST_-Hallway-Crescendo%20(1).mp3"))
+end
+
+if not isfile("IndexellScripts/Assets/c00lkiddseek/kiddoSeek.rbxm") then
+	writefile("IndexellScripts/Assets/c00lkiddseek/kiddoSeek.rbxm", game:HttpGet("https://github.com/IdkMyNameLoll/OtherAssets/raw/refs/heads/main/ddwdwadwaudwaudwiu.rbxm"))
+end
+
+local function fixSeek(figure:Model)
+	local kiddoCrucifix = Instance.new("Sound",figure)
+	local kiddoKill = Instance.new("Sound",figure)
+	local kiddoLaugh = Instance.new("Sound",figure)
+	local newerMusic = figure.Parent:WaitForChild("SeekMusic"):Clone()
+	figure.Parent:WaitForChild("SeekMusic").Volume = 0
+	newerMusic.Parent = figure.Parent
+	
+	figure.Parent:WaitForChild("SeekMusic"):GetPropertyChangedSignal("Playing"):Connect(function()
+		if figure.Parent:WaitForChild("SeekMusic").Playing == true then
+			if newerMusic.Playing == false then
+				newerMusic:Play()
+			end
+		else
+			newerMusic:Stop()
+		end
+	end)
+	
+	task.spawn(function()
+		newerMusic.SoundId = getcustomasset("IndexellScripts/Assets/c00lkiddseek/kiddoMusic.mp3",true)
+		newerMusic.TimePosition = 8.5
+	end)
+	
+	kiddoCrucifix.Name = "kiddoCrucifix"
+	kiddoCrucifix.Volume = 4
+	kiddoCrucifix.SoundId = getcustomasset("IndexellScripts/Assets/c00lkiddseek/crucifixKiddo.mp3",true)
+	
+	kiddoKill.Name = "kiddoKill"
+	kiddoKill.Volume = 2
+	kiddoKill.SoundId = getcustomasset("IndexellScripts/Assets/c00lkiddseek/kiddoKill.mp3",true)
+	
+	kiddoLaugh.Name = "kiddoLaugh"
+	kiddoLaugh.Volume = 1
+	kiddoLaugh.SoundId = getcustomasset("IndexellScripts/Assets/c00lkiddseek/kiddoLaugh.mp3",true)
+	
+	local function playCrucifixSound()
+		local randDialoguePos = math.random(1,3)
+		local newSound = kiddoCrucifix:Clone()
+		
+		newSound.Parent = figure
+		newSound.Name = "Sound"
+
+		if randDialoguePos == 1 then
+			newSound.TimePosition = 0
+			newSound:Play()
+			task.wait(3)
+			newSound:Destroy()
+		elseif randDialoguePos == 2 then
+			newSound.TimePosition = 4
+			newSound:Play()
+			task.wait(3)
+			newSound:Destroy()
+		elseif randDialoguePos == 3 then
+			newSound.TimePosition = 8.5
+			newSound:Play()
+			task.wait(3)
+			newSound:Destroy()
+		end
+	end
+	
+	figure:WaitForChild("Scream").Played:Connect(function()
+		figure:WaitForChild("Scream"):Stop()
+		kiddoLaugh:Play()
+	end)
+	
+	figure:WaitForChild("Kill").Played:Connect(function()
+		figure:WaitForChild("Kill"):Stop()
+		kiddoKill:Play()
+	end)
+	
+	workspace.ChildAdded:Connect(function(thing)
+		if thing.Name == "Repentance" then
+			if not thing:FindFirstChild("RushMoving") and not thing:FindFirstChild("AmbushMoving") and not thing:FindFirstChild("Giggle") and not thing:FindFirstChild("A90") and not thing:FindFirstChild("BackdoorLookman") and not thing:FindFirstChild("Screech") and not thing:FindFirstChild("GloombatSwarm") and not thing:FindFirstChild("A60") and not thing:FindFirstChild("A120") and not thing:FindFirstChild("Eyes") and not thing:FindFirstChild("BackdoorRush") then
+				task.wait(0.15)
+				if (thing:WaitForChild("Entity").Position - figure.Position).Magnitude <= 3.5 then
+					playCrucifixSound()
+				end
+			end
+		end
+	end)
+	
+	local rig = figure.Parent:WaitForChild("SeekRig")
+	
+	for _, d in pairs(rig:GetDescendants()) do
+		if d:IsA("BasePart") then
+			d.Anchored = true
+			d.Transparency = 1
+			if d.Name == "SeekPuddle" then
+				d.Transparency = 0
+				d.Color = Color3.fromRGB(45,0,0)
+			end
+		elseif d:IsA("Decal") or d:IsA("Texture") then
+			d.Transparency = 1
+		end
+	end
+	
+	local kiddo = game:GetObjects(getcustomasset("IndexellScripts/Assets/c00lkiddseek/kiddoSeek.rbxm", true))[1]
+	
+	kiddo.Parent = figure.Parent
+	kiddo:PivotTo(figure.CFrame)
+
+	local function createNewWeld(part1,part2)
+		local newWe = Instance.new("WeldConstraint",kiddo.weld)
+		newWe.Part0 = part1:WaitForChild(part1.Name)
+		part1:PivotTo(rig:WaitForChild(part2.Name).CFrame)
+		newWe.Part1 = part2
+
+		part1[part1.Name].Anchored = false
+		part1[part1.Name].Parent = kiddo
+		part1:Destroy()
+	end
+
+	createNewWeld(kiddo.Headc,rig.Head)
+	createNewWeld(kiddo.Torsoc,rig.UpperTorso)
+	createNewWeld(kiddo["Left Armc"],rig.LeftUpperArm)
+	createNewWeld(kiddo["Left Armc2"],rig.LeftLowerArm)
+	createNewWeld(kiddo["Left Legc"],rig.LeftLowerLeg)
+	createNewWeld(kiddo["Right Armc"],rig.RightUpperArm)
+	createNewWeld(kiddo["Right Armc2"],rig.RightLowerArm)
+	createNewWeld(kiddo["Right Legc"],rig.RightLowerLeg)
+
+	createNewWeld(kiddo["Right Legc2"],rig.RightUpperLeg)
+	createNewWeld(kiddo["Left Legc2"],rig.LeftUpperLeg)
+	
+	for _, d in pairs(rig:GetDescendants()) do
+		if d:IsA("BasePart") then
+			d.Anchored = false
+		end
+	end
+end
+
+local function isInTestingPlace()
+	if game.GameId == 6974202571 then
+		return true
+	else
+		return false
+	end
+end
+
+workspace.ChildAdded:Connect(function(se)
+	task.wait(1)
+	if se.Name == "SeekMovingNewClone" then
+		fixSeek(se:WaitForChild("Figure"))
+	end
+end)
