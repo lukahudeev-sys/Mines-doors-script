@@ -20,8 +20,8 @@ if not isfile("IndexellScripts/Assets/c00lkiddseek/kiddoLaugh.mp3") then
 	writefile("IndexellScripts/Assets/c00lkiddseek/kiddoLaugh.mp3", game:HttpGet("https://github.com/IdkMyNameLoll/OtherAssets/raw/refs/heads/main/kiddoLaugh.mp3"))
 end
 
-if not isfile("IndexellScripts/Assets/c00lkiddseek/kiddoMusic.mp3") then
-	writefile("IndexellScripts/Assets/c00lkiddseek/kiddoMusic.mp3", game:HttpGet("https://github.com/lukahudeev-sys/Mines-doors-script/blob/main/Doors-on-Budget-OST_-Hallway-Crescendo%20(1).mp3"))
+if not isfile("IndexellScripts/Assets/c00lkiddseek/Doors-on-Budget-OST_-Hallway-Crescendo%20(1).mp3") then
+	writefile("IndexellScripts/Assets/c00lkiddseek/Doors-on-Budget-OST_-Hallway-Crescendo%20(1).mp3", game:HttpGet("https://github.com/lukahudeev-sys/Mines-doors-script/raw/refs/heads/main/Doors-on-Budget-OST_-Hallway-Crescendo%20(1).mp3"))
 end
 
 if not isfile("IndexellScripts/Assets/c00lkiddseek/kiddoSeek.rbxm") then
@@ -47,7 +47,7 @@ local function fixSeek(figure:Model)
 	end)
 	
 	task.spawn(function()
-		newerMusic.SoundId = getcustomasset("IndexellScripts/Assets/c00lkiddseek/Doors-on-Budget-OST_-Hallway-Crescendo%20(1)",true)
+		newerMusic.SoundId = getcustomasset("IndexellScripts/Assets/c00lkiddseek/kiddoMusic.mp3",true)
 		newerMusic.TimePosition = 8.5
 	end)
 	
