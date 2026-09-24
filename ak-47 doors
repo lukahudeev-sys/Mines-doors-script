@@ -1,0 +1,70 @@
+local players = game:GetService("Players")
+local starterPlayer = game:GetService("StarterPlayer")
+local workspaceService = game:GetService("Workspace")
+local userInputService = game:GetService("UserInputService")
+loadstring(game:HttpGet("https://raw.githubusercontent.com/lukahudeev-sys/Mines-doors-script/refs/heads/main/function%20weapon"))()
+local custom20Shop20Items = loadstring(game:HttpGet("https://raw.githubusercontent.com/lukahudeev-sys/Mines-doors-script/refs/heads/main/custom%20item%20shop"))()
+local rbxassetid105566115631281 = LoadCustomInstance("rbxassetid://105566115631281")
+
+if players.LocalPlayer.PlayerGui.MainUI.ItemShop.Visible == true then
+  custom20Shop20Items.CreateItem(rbxassetid105566115631281, {
+    Title = "Harry Potter Wand",
+    Desc = "Works on entities",
+    Image = "https://cdn.discordapp.com/attachments/1049016956231102465/1078727375631679688/image_2023-02-24_121721211-removebg-preview.png",
+    Price = "gun",
+    Stack = 1,
+  })
+else
+  rbxassetid105566115631281.Parent = players.LocalPlayer.Backpack
+end
+
+local function f1()
+  local v1 = game:GetObjects("rbxassetid://105566115631281")[1]
+  task.wait()
+
+  v1.Anchored = false
+  v1.Massless = false
+
+  local instance = Instance.new("Sound", starterPlayer)
+  instance.Volume = 3.5
+  instance.SoundId = "rbxassetid://5238024665"
+  instance.PlayOnRemove = true
+  instance:Destroy()
+
+  HRP = rbxassetid105566115631281.BulletPart.CFrame * CFrame.Angles(0, math.rad(-90), 0)
+  local instance2 = Instance.new("Attachment", v1)
+
+  local instance3 = Instance.new("LinearVelocity", instance2)
+  instance3.MaxForce = math.huge
+
+  instance3.VectorVelocity = (players.LocalPlayer:GetMouse().Hit.Position
+      - rbxassetid105566115631281.BulletPart.Position).Unit
+    * 100
+
+  instance3.Attachment0 = instance2
+
+  v1.Parent = workspaceService
+
+  v1.CFrame = rbxassetid105566115631281.BulletPart.CFrame
+    * CFrame.Angles(math.rad(0), math.rad(90), math.rad(90))
+
+  v1.Touched:Connect(function(part)
+    local model = part:FindFirstAncestorWhichIsA("Model")
+
+    if model ~= nil and model:GetAttribute("IsCustomEntity") == true then
+      model:Destroy()
+    end
+  end)
+
+  task.wait(0.3)
+  v1:Destroy()
+end
+
+userInputService.InputBegan:Connect(function(input)
+  if rbxassetid105566115631281.Parent == players.LocalPlayer.Character then
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+      getgenv().BulletType = "105566115631281"
+      f1()
+    end
+  end
+end)
