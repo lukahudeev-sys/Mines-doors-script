@@ -47,7 +47,7 @@ local function fixSeek(figure:Model)
 	end)
 	
 	task.spawn(function()
-		newerMusic.SoundId = getcustomasset("IndexellScripts/Assets/c00lkiddseek/kiddoMusic.mp3",true)
+		newerMusic.SoundId = getcustomasset("IndexellScripts/Assets/c00lkiddseek/Doors-on-Budget-OST_-Hallway-Crescendo%20(1)",true)
 		newerMusic.TimePosition = 8.5
 	end)
 	
