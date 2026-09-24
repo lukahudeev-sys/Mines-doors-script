@@ -1,4 +1,4 @@
-local v1 = game:GetObjects("rbxassetid://13106461116")
+local v1 = game:GetObjects("rbxassetid://119511936910640")
 v1[1].Parent = game.Players.LocalPlayer.Backpack
 v1[1].Equipped:Connect(function()
 	local v2 = _u1:LoadAnimation(_u0.Animations.idle)
