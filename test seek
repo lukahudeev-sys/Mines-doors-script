@@ -1,205 +1,214 @@
-if not isfolder("IndexellScripts") then
-	makefolder("IndexellScripts")
+--[[
+    Seek Morph для Doors
+    Использование:
+      - LocalScript в StarterPlayerScripts
+      - Или через executor: loadstring(game:HttpGet("URL"))()
+    
+    Управление:
+      R — проиграть интро (вылезание из трубы)
+      T — крик (Scream)
+      Ходьба/бег — авто-анимация + шаги
+--]]
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+
+-- Защита от повторного морфа
+if _G.SeekMorphActive then
+    warn("[Seek Morph] Уже активен!")
+    return
 end
-if not isfolder("IndexellScripts/Assets") then
-	makefolder("IndexellScripts/Assets")
-end
-if not isfolder("IndexellScripts/Assets/c00lkiddseek") then
-	makefolder("IndexellScripts/Assets/c00lkiddseek")
-end
+_G.SeekMorphActive = true
 
-if not isfile("IndexellScripts/Assets/c00lkiddseek/crucifixKiddo.mp3") then
-	writefile("IndexellScripts/Assets/c00lkiddseek/crucifixKiddo.mp3", game:HttpGet("https://github.com/IdkMyNameLoll/OtherAssets/raw/refs/heads/main/kiddoSoundsCrucifixed.mp3"))
-end
+-- ============================================================
+-- НАСТРОЙКА
+-- ============================================================
+local SEEK_ASSET = "rbxassetid://86341229891935" -- модель Seek
+local DOORS_TEST_PLACE_ID = 6627207668           -- тестовый плейс Доорс
 
-if not isfile("IndexellScripts/Assets/c00lkiddseek/kiddoKill.mp3") then
-	writefile("IndexellScripts/Assets/c00lkiddseek/kiddoKill.mp3", game:HttpGet("https://github.com/IdkMyNameLoll/OtherAssets/raw/refs/heads/main/kiddoKill.mp3"))
-end
-
-if not isfile("IndexellScripts/Assets/c00lkiddseek/kiddoLaugh.mp3") then
-	writefile("IndexellScripts/Assets/c00lkiddseek/kiddoLaugh.mp3", game:HttpGet("https://github.com/IdkMyNameLoll/OtherAssets/raw/refs/heads/main/kiddoLaugh.mp3"))
-end
-
-if not isfile("IndexellScripts/Assets/c00lkiddseek/kiddoMusic.mp3") then
-	writefile("IndexellScripts/Assets/c00lkiddseek/kiddoMusic.mp3", game:HttpGet("https://raw.githubusercontent.com/lukahudeev-sys/Mines-doors-script/refs/heads/main/Doors-on-Budget-OST_-Hallway-Crescendo%20(1).mp3"))
-end
-
-if not isfile("IndexellScripts/Assets/c00lkiddseek/kiddoSeek.rbxm") then
-	writefile("IndexellScripts/Assets/c00lkiddseek/kiddoSeek.rbxm", game:HttpGet("https://github.com/IdkMyNameLoll/OtherAssets/raw/refs/heads/main/ddwdwadwaudwaudwiu.rbxm"))
-end
-
-local function fixSeek(figure:Model)
-	local kiddoCrucifix = Instance.new("Sound",figure)
-	local kiddoKill = Instance.new("Sound",figure)
-	local kiddoLaugh = Instance.new("Sound",figure)
-	local seekMusic = figure.Parent:WaitForChild("SeekMusic")
-	local newerMusic = seekMusic:Clone()
-	seekMusic.Volume = 0
-	newerMusic.Name = "KiddoSeekMusic"
-	newerMusic.Parent = figure.Parent
-	newerMusic.Volume = seekMusic.Volume > 0 and seekMusic.Volume or 1
-	newerMusic.Looped = seekMusic.Looped
-
-	local musicPath = "IndexellScripts/Assets/c00lkiddseek/kiddoMusic.mp3"
-	local ok, assetId = pcall(function()
-		return getcustomasset(musicPath, true)
-	end)
-
-	if not ok or not assetId then
-		warn("Seek music: getcustomasset failed:", assetId)
-	else
-		newerMusic.SoundId = assetId
-		newerMusic.TimePosition = 8.5
-
-		local function startMusic()
-			if newerMusic.SoundId == "" then
-				return
-			end
-			if not newerMusic.Playing then
-				local loaded = pcall(function()
-					if not newerMusic.IsLoaded then
-						newerMusic.Loaded:Wait()
-					end
-				end)
-				if loaded then
-					newerMusic:Play()
-				end
-			end
-		end
-
-		seekMusic:GetPropertyChangedSignal("Playing"):Connect(function()
-			if seekMusic.Playing then
-				startMusic()
-			else
-				newerMusic:Stop()
-			end
-		end)
-
-		-- If SeekMusic was already playing when this code ran.
-		if seekMusic.Playing then
-			startMusic()
-		end
-	end
-	
-	kiddoCrucifix.Name = "kiddoCrucifix"
-	kiddoCrucifix.Volume = 4
-	kiddoCrucifix.SoundId = getcustomasset("IndexellScripts/Assets/c00lkiddseek/crucifixKiddo.mp3",true)
-	
-	kiddoKill.Name = "kiddoKill"
-	kiddoKill.Volume = 2
-	kiddoKill.SoundId = getcustomasset("IndexellScripts/Assets/c00lkiddseek/kiddoKill.mp3",true)
-	
-	kiddoLaugh.Name = "kiddoLaugh"
-	kiddoLaugh.Volume = 1
-	kiddoLaugh.SoundId = getcustomasset("IndexellScripts/Assets/c00lkiddseek/kiddoLaugh.mp3",true)
-	
-	local function playCrucifixSound()
-		local randDialoguePos = math.random(1,3)
-		local newSound = kiddoCrucifix:Clone()
-		
-		newSound.Parent = figure
-		newSound.Name = "Sound"
-
-		if randDialoguePos == 1 then
-			newSound.TimePosition = 0
-			newSound:Play()
-			task.wait(3)
-			newSound:Destroy()
-		elseif randDialoguePos == 2 then
-			newSound.TimePosition = 4
-			newSound:Play()
-			task.wait(3)
-			newSound:Destroy()
-		elseif randDialoguePos == 3 then
-			newSound.TimePosition = 8.5
-			newSound:Play()
-			task.wait(3)
-			newSound:Destroy()
-		end
-	end
-	
-	figure:WaitForChild("Scream").Played:Connect(function()
-		figure:WaitForChild("Scream"):Stop()
-		kiddoLaugh:Play()
-	end)
-	
-	figure:WaitForChild("Kill").Played:Connect(function()
-		figure:WaitForChild("Kill"):Stop()
-		kiddoKill:Play()
-	end)
-	
-	workspace.ChildAdded:Connect(function(thing)
-		if thing.Name == "Repentance" then
-			if not thing:FindFirstChild("RushMoving") and not thing:FindFirstChild("AmbushMoving") and not thing:FindFirstChild("Giggle") and not thing:FindFirstChild("A90") and not thing:FindFirstChild("BackdoorLookman") and not thing:FindFirstChild("Screech") and not thing:FindFirstChild("GloombatSwarm") and not thing:FindFirstChild("A60") and not thing:FindFirstChild("A120") and not thing:FindFirstChild("Eyes") and not thing:FindFirstChild("BackdoorRush") then
-				task.wait(0.15)
-				if (thing:WaitForChild("Entity").Position - figure.Position).Magnitude <= 3.5 then
-					playCrucifixSound()
-				end
-			end
-		end
-	end)
-	
-	local rig = figure.Parent:WaitForChild("SeekRig")
-	
-	for _, d in pairs(rig:GetDescendants()) do
-		if d:IsA("BasePart") then
-			d.Anchored = true
-			d.Transparency = 1
-			if d.Name == "SeekPuddle" then
-				d.Transparency = 0
-				d.Color = Color3.fromRGB(45,0,0)
-			end
-		elseif d:IsA("Decal") or d:IsA("Texture") then
-			d.Transparency = 1
-		end
-	end
-	
-	local kiddo = game:GetObjects(getcustomasset("IndexellScripts/Assets/c00lkiddseek/kiddoSeek.rbxm", true))[1]
-	
-	kiddo.Parent = figure.Parent
-	kiddo:PivotTo(figure.CFrame)
-
-	local function createNewWeld(part1,part2)
-		local newWe = Instance.new("WeldConstraint",kiddo.weld)
-		newWe.Part0 = part1:WaitForChild(part1.Name)
-		part1:PivotTo(rig:WaitForChild(part2.Name).CFrame)
-		newWe.Part1 = part2
-
-		part1[part1.Name].Anchored = false
-		part1[part1.Name].Parent = kiddo
-		part1:Destroy()
-	end
-
-	createNewWeld(kiddo.Headc,rig.Head)
-	createNewWeld(kiddo.Torsoc,rig.UpperTorso)
-	createNewWeld(kiddo["Left Armc"],rig.LeftUpperArm)
-	createNewWeld(kiddo["Left Armc2"],rig.LeftLowerArm)
-	createNewWeld(kiddo["Left Legc"],rig.LeftLowerLeg)
-	createNewWeld(kiddo["Right Armc"],rig.RightUpperArm)
-	createNewWeld(kiddo["Right Armc2"],rig.RightLowerArm)
-	createNewWeld(kiddo["Right Legc"],rig.RightLowerLeg)
-
-	createNewWeld(kiddo["Right Legc2"],rig.RightUpperLeg)
-	createNewWeld(kiddo["Left Legc2"],rig.LeftUpperLeg)
-	
-	for _, d in pairs(rig:GetDescendants()) do
-		if d:IsA("BasePart") then
-			d.Anchored = false
-		end
-	end
-end
-
-local function isInTestingPlace()
-	if game.GameId == 6974202571 then
-		return true
-	else
-		return false
-	end
-end
-
-workspace.ChildAdded:Connect(function(se)
-	task.wait(1)
-	if se.Name == "SeekMovingNewClone" then
-		fixSeek(se:WaitForChild("Figure"))
-	end
+-- ============================================================
+-- ЗАГРУЗКА МОДЕЛИ
+-- ============================================================
+local ok, figureNew = pcall(function()
+    return game:GetObjects(SEEK_ASSET)[1]
 end)
+
+if not ok or not figureNew then
+    warn("[Seek Morph] Не удалось загрузить модель Seek. Проверь asset id.")
+    _G.SeekMorphActive = false
+    return
+end
+
+local isTestPlace = (game.GameId == DOORS_TEST_PLACE_ID)
+local canWalk = true
+local introCD = false
+
+figureNew.Parent = workspace
+
+-- ============================================================
+-- АНИМАЦИИ
+-- ============================================================
+local IntroAnim, PipeSlimeAnim, WalkAnim
+
+if isTestPlace then
+    figureNew.SeekMusic.Intro.SoundId = "rbxassetid://138877504428539"
+    IntroAnim = figureNew.SeekRig.AnimationController.Animator:LoadAnimation(figureNew.AnimationsTest.minesintro)
+    WalkAnim = figureNew.SeekRig.AnimationController.Animator:LoadAnimation(figureNew.AnimationsTest.run)
+    PipeSlimeAnim = figureNew.FullPipe._SeekCutscene.AnimationController:LoadAnimation(figureNew.FullPipe._SeekCutscene.AnimationP)
+else
+    IntroAnim = figureNew.SeekRig.AnimationController.Animator:LoadAnimation(figureNew.Animations.minesintro)
+    WalkAnim = figureNew.SeekRig.AnimationController.Animator:LoadAnimation(figureNew.Animations.run)
+    PipeSlimeAnim = figureNew.FullPipe._SeekCutscene.AnimationController:LoadAnimation(figureNew.FullPipe._SeekCutscene.Animation)
+end
+
+WalkAnim:Play()
+WalkAnim:AdjustSpeed(0)
+
+-- ============================================================
+-- ШАГИ
+-- ============================================================
+spawn(function()
+    while figureNew.Parent do
+        task.wait()
+        if canWalk == false then
+            figureNew.Figure.Footsteps:Stop()
+            figureNew.Figure.FootstepsFar:Stop()
+        end
+        if figureNew.Figure.Footsteps.IsPlaying and not figureNew.Figure.FootstepsFar.IsPlaying then
+            figureNew.Figure.FootstepsFar:Play()
+        end
+        if figureNew.Figure.FootstepsFar.IsPlaying and not figureNew.Figure.Footsteps.IsPlaying then
+            figureNew.Figure.Footsteps:Play()
+        end
+    end
+end)
+
+-- ============================================================
+-- АНИМАЦИЯ ПО СКОРОСТИ
+-- ============================================================
+spawn(function()
+    local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+    local hum = char:WaitForChild("Humanoid")
+    hum.Running:Connect(function(speed)
+        if speed >= 5 then
+            WalkAnim:AdjustSpeed(1)
+            if canWalk and not figureNew.Figure.Footsteps.IsPlaying then
+                figureNew.Figure.Footsteps:Play()
+                figureNew.Figure.FootstepsFar:Play()
+            end
+        else
+            WalkAnim:AdjustSpeed(0)
+            if canWalk and figureNew.Figure.Footsteps.IsPlaying then
+                figureNew.Figure.Footsteps:Stop()
+                figureNew.Figure.FootstepsFar:Stop()
+            end
+        end
+    end)
+end)
+
+-- ============================================================
+-- ИНТРО (вылезание из трубы)
+-- ============================================================
+local function playIntro()
+    if introCD then return end
+    introCD = true
+    canWalk = false
+
+    local char = LocalPlayer.Character
+    if not char or not char:FindFirstChild("HumanoidRootPart") then
+        introCD = false
+        return
+    end
+    char.HumanoidRootPart.Anchored = true
+
+    figureNew.FullPipe._SeekCutscene.SlimeDrip1.Transparency = 0
+    figureNew.FullPipe._SeekCutscene.SlimeDrip2.Transparency = 0
+    figureNew.FullPipe.GrateCap.Circle.Transparency = 0
+    figureNew.FullPipe.GrateCap.Grate.Transparency = 0
+    figureNew.FullPipe.FigurePipe.PipeBase.Transparency = 0
+    figureNew.SeekRig.SeekPuddle.Transparency = 0
+
+    spawn(function()
+        task.wait(8.11)
+        for _, Beam in pairs(figureNew.SeekRig:GetChildren()) do
+            if Beam:IsA("Beam") and Beam.Name == "StringCheese" then
+                Beam.Enabled = true
+            end
+        end
+    end)
+    spawn(function()
+        task.wait(10.2)
+        for _, Beam in pairs(figureNew.SeekRig:GetChildren()) do
+            if Beam:IsA("Beam") and Beam.Name == "StringCheese" then
+                Beam.Enabled = false
+            end
+        end
+    end)
+
+    IntroAnim:Play()
+    PipeSlimeAnim:Play()
+    figureNew.SeekMusic.Intro:Play()
+
+    task.wait(IntroAnim.Length - 2)
+
+    IntroAnim:Stop()
+    figureNew.FullPipe._SeekCutscene.SlimeDrip1.Transparency = 1
+    figureNew.FullPipe._SeekCutscene.SlimeDrip2.Transparency = 1
+    figureNew.FullPipe.GrateCap.Circle.Transparency = 1
+    figureNew.FullPipe.GrateCap.Grate.Transparency = 1
+    figureNew.FullPipe.FigurePipe.PipeBase.Transparency = 1
+    figureNew.SeekRig.SeekPuddle.Transparency = 1
+
+    canWalk = true
+    if char and char:FindFirstChild("HumanoidRootPart") then
+        char.HumanoidRootPart.Anchored = false
+    end
+    introCD = false
+end
+
+-- ============================================================
+-- СИНХРОНИЗАЦИЯ + СКРЫТИЕ ИГРОКА
+-- ============================================================
+spawn(function()
+    RunService.RenderStepped:Connect(function()
+        local char = LocalPlayer.Character
+        if not char then return end
+
+        local head = char:FindFirstChild("Head")
+        if head then head.Transparency = 1 end
+
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+        if hrp and figureNew.Parent then
+            figureNew:PivotTo(hrp.CFrame)
+        end
+
+        for _, v in pairs(char:GetChildren()) do
+            if v:IsA("BasePart") then
+                v.LocalTransparencyModifier = 1
+                for _, d in pairs(v:GetDescendants()) do
+                    if d:IsA("Decal") or d:IsA("Texture") then
+                        d.Transparency = 1
+                    end
+                end
+            elseif v:IsA("Accessory") then
+                if v:FindFirstChild("Handle") then
+                    v.Handle.Transparency = 1
+                end
+            end
+        end
+    end)
+end)
+
+-- ============================================================
+-- УПРАВЛЕНИЕ
+-- ============================================================
+LocalPlayer:GetMouse().KeyDown:Connect(function(key)
+    if key == "r" then
+        playIntro()
+    elseif key == "t" then
+        figureNew.Figure.Scream:Play()
+    end
+end)
+
+print("[Seek Morph] Загружен! R — интро, T — крик")
