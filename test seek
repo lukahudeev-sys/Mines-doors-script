@@ -1,12 +1,13 @@
 --[[
-    Seek Morph для Doors (FIXED HEAD)
+    Seek Morph для Doors
     Использование:
       - LocalScript в StarterPlayerScripts
       - Или через executor: loadstring(game:HttpGet("URL"))()
     
     Управление:
-      R — интро (вылезание из трубы)
+      R — проиграть интро (вылезание из трубы)
       T — крик (Scream)
+      Ходьба/бег — авто-анимация + шаги
 --]]
 
 local Players = game:GetService("Players")
@@ -23,8 +24,8 @@ _G.SeekMorphActive = true
 -- ============================================================
 -- НАСТРОЙКА
 -- ============================================================
-local SEEK_ASSET = "rbxassetid://86341229891935"
-local DOORS_TEST_PLACE_ID = 6627207668
+local SEEK_ASSET = "rbxassetid://86341229891935" -- модель Seek
+local DOORS_TEST_PLACE_ID = 6627207668           -- тестовый плейс Доорс
 
 -- ============================================================
 -- ЗАГРУЗКА МОДЕЛИ
@@ -34,7 +35,7 @@ local ok, figureNew = pcall(function()
 end)
 
 if not ok or not figureNew then
-    warn("[Seek Morph] Не удалось загрузить модель Seek.")
+    warn("[Seek Morph] Не удалось загрузить модель Seek. Проверь asset id.")
     _G.SeekMorphActive = false
     return
 end
@@ -46,175 +47,39 @@ local introCD = false
 figureNew.Parent = workspace
 
 -- ============================================================
--- 🔧 ФИКС ГОЛОВЫ И ВСЕХ ЧАСТЕЙ (заваривание)
--- ============================================================
-local function findPrimaryRoot(model)
-    -- Ищем корень модели по приоритетам
-    local candidates = {
-        "HumanoidRootPart", "Torso", "UpperTorso", "SeekRig", 
-        "Root", "RootPart", "Main", "Figure"
-    }
-    for _, name in ipairs(candidates) do
-        local found = model:FindFirstChild(name, true)
-        if found and found:IsA("BasePart") then
-            return found
-        end
-    end
-    -- Если не нашли — берём первую BasePart
-    for _, v in pairs(model:GetDescendants()) do
-        if v:IsA("BasePart") then
-            return v
-        end
-    end
-    return nil
-end
-
-local function fixModelWelds()
-    task.wait(1) -- ждём полной загрузки модели
-    
-    local root = findPrimaryRoot(figureNew)
-    if not root then
-        warn("[Seek Morph] Не найден корень модели")
-        return
-    end
-    
-    print("[Seek Morph] Корень модели:", root:GetFullName())
-    figureNew.PrimaryPart = root
-    
-    -- Собираем все BasePart и завариваем к корню
-    local parts = {}
-    for _, v in pairs(figureNew:GetDescendants()) do
-        if v:IsA("BasePart") and v ~= root then
-            table.insert(parts, v)
-        end
-    end
-    
-    print("[Seek Morph] Найдено частей для заварки:", #parts)
-    
-    -- Определяем, что считаем "головой" — всё что называется Head/Skull/SeekHead
-    local headNames = { "Head", "SeekHead", "Skull", "HeadMesh" }
-    
-    for _, part in ipairs(parts) do
-        -- Удаляем старые кривые сварки
-        for _, c in pairs(part:GetChildren()) do
-            if c:IsA("Weld") or c:IsA("WeldConstraint") or c:IsA("Motor6D") 
-               or c:IsA("Snap") or c:IsA("ManualWeld") then
-                -- Не трогаем Motor6D если это часть рига с анимациями (кроме головы)
-                local isHead = false
-                for _, hn in ipairs(headNames) do
-                    if part.Name == hn or part.Name:find(hn) then
-                        isHead = true
-                        break
-                    end
-                end
-                
-                if isHead or c:IsA("Weld") or c:IsA("WeldConstraint") 
-                   or c:IsA("Snap") or c:IsA("ManualWeld") then
-                    c:Destroy()
-                end
-            end
-        end
-        
-        -- Создаём новую сварку к корню
-        local weld = Instance.new("WeldConstraint")
-        weld.Part0 = part
-        weld.Part1 = root
-        weld.Parent = part
-        
-        -- Фиксируем позицию относительно корня
-        part.CFrame = root.CFrame * (root.CFrame:Inverse() * part.CFrame)
-    end
-    
-    print("[Seek Morph] ✅ Все части заварены к корню")
-end
-
--- Запускаем фикс
-task.spawn(fixModelWelds)
-
--- Дополнительный фикс — перепроверка через 3 секунды
-task.spawn(function()
-    task.wait(3)
-    local root = figureNew.PrimaryPart or findPrimaryRoot(figureNew)
-    if not root then return end
-    
-    for _, v in pairs(figureNew:GetDescendants()) do
-        if v:IsA("BasePart") and v ~= root then
-            local hasWeld = false
-            for _, c in pairs(v:GetChildren()) do
-                if c:IsA("WeldConstraint") or c:IsA("Weld") or c:IsA("Motor6D") then
-                    if c.Part0 == v or c.Part1 == v then
-                        hasWeld = true
-                        break
-                    end
-                end
-            end
-            if not hasWeld then
-                local weld = Instance.new("WeldConstraint")
-                weld.Part0 = v
-                weld.Part1 = root
-                weld.Parent = v
-            end
-        end
-    end
-    print("[Seek Morph] Повторная проверка сварки завершена")
-end)
-
--- ============================================================
 -- АНИМАЦИИ
 -- ============================================================
 local IntroAnim, PipeSlimeAnim, WalkAnim
 
-local function loadAnims()
-    local ok2, err = pcall(function()
-        if isTestPlace then
-            figureNew.SeekMusic.Intro.SoundId = "rbxassetid://138877504428539"
-            IntroAnim = figureNew.SeekRig.AnimationController.Animator:LoadAnimation(figureNew.AnimationsTest.minesintro)
-            WalkAnim = figureNew.SeekRig.AnimationController.Animator:LoadAnimation(figureNew.AnimationsTest.run)
-            PipeSlimeAnim = figureNew.FullPipe._SeekCutscene.AnimationController:LoadAnimation(figureNew.FullPipe._SeekCutscene.AnimationP)
-        else
-            IntroAnim = figureNew.SeekRig.AnimationController.Animator:LoadAnimation(figureNew.Animations.minesintro)
-            WalkAnim = figureNew.SeekRig.AnimationController.Animator:LoadAnimation(figureNew.Animations.run)
-            PipeSlimeAnim = figureNew.FullPipe._SeekCutscene.AnimationController:LoadAnimation(figureNew.FullPipe._SeekCutscene.Animation)
-        end
-    end)
-    
-    if not ok2 then
-        warn("[Seek Morph] Ошибка загрузки анимаций:", err)
-        return false
-    end
-    
-    WalkAnim:Play()
-    WalkAnim:AdjustSpeed(0)
-    return true
+if isTestPlace then
+    figureNew.SeekMusic.Intro.SoundId = "rbxassetid://138877504428539"
+    IntroAnim = figureNew.SeekRig.AnimationController.Animator:LoadAnimation(figureNew.AnimationsTest.minesintro)
+    WalkAnim = figureNew.SeekRig.AnimationController.Animator:LoadAnimation(figureNew.AnimationsTest.run)
+    PipeSlimeAnim = figureNew.FullPipe._SeekCutscene.AnimationController:LoadAnimation(figureNew.FullPipe._SeekCutscene.AnimationP)
+else
+    IntroAnim = figureNew.SeekRig.AnimationController.Animator:LoadAnimation(figureNew.Animations.minesintro)
+    WalkAnim = figureNew.SeekRig.AnimationController.Animator:LoadAnimation(figureNew.Animations.run)
+    PipeSlimeAnim = figureNew.FullPipe._SeekCutscene.AnimationController:LoadAnimation(figureNew.FullPipe._SeekCutscene.Animation)
 end
 
--- Ждём прогрузки и грузим анимации
-task.spawn(function()
-    task.wait(0.5)
-    loadAnims()
-end)
+WalkAnim:Play()
+WalkAnim:AdjustSpeed(0)
 
 -- ============================================================
 -- ШАГИ
 -- ============================================================
-task.spawn(function()
+spawn(function()
     while figureNew.Parent do
         task.wait()
-        if figureNew:FindFirstChild("Figure") then
-            local fs = figureNew.Figure:FindFirstChild("Footsteps")
-            local fsf = figureNew.Figure:FindFirstChild("FootstepsFar")
-            if fs and fsf then
-                if canWalk == false then
-                    fs:Stop()
-                    fsf:Stop()
-                end
-                if fs.IsPlaying and not fsf.IsPlaying then
-                    fsf:Play()
-                end
-                if fsf.IsPlaying and not fs.IsPlaying then
-                    fs:Play()
-                end
-            end
+        if canWalk == false then
+            figureNew.Figure.Footsteps:Stop()
+            figureNew.Figure.FootstepsFar:Stop()
+        end
+        if figureNew.Figure.Footsteps.IsPlaying and not figureNew.Figure.FootstepsFar.IsPlaying then
+            figureNew.Figure.FootstepsFar:Play()
+        end
+        if figureNew.Figure.FootstepsFar.IsPlaying and not figureNew.Figure.Footsteps.IsPlaying then
+            figureNew.Figure.Footsteps:Play()
         end
     end
 end)
@@ -222,37 +87,31 @@ end)
 -- ============================================================
 -- АНИМАЦИЯ ПО СКОРОСТИ
 -- ============================================================
-task.spawn(function()
+spawn(function()
     local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
     local hum = char:WaitForChild("Humanoid")
     hum.Running:Connect(function(speed)
-        if not WalkAnim then return end
         if speed >= 5 then
             WalkAnim:AdjustSpeed(1)
-            if canWalk and figureNew:FindFirstChild("Figure") then
-                local fs = figureNew.Figure:FindFirstChild("Footsteps")
-                local fsf = figureNew.Figure:FindFirstChild("FootstepsFar")
-                if fs and not fs.IsPlaying then fs:Play() end
-                if fsf and not fsf.IsPlaying then fsf:Play() end
+            if canWalk and not figureNew.Figure.Footsteps.IsPlaying then
+                figureNew.Figure.Footsteps:Play()
+                figureNew.Figure.FootstepsFar:Play()
             end
         else
             WalkAnim:AdjustSpeed(0)
-            if canWalk and figureNew:FindFirstChild("Figure") then
-                local fs = figureNew.Figure:FindFirstChild("Footsteps")
-                local fsf = figureNew.Figure:FindFirstChild("FootstepsFar")
-                if fs and fs.IsPlaying then fs:Stop() end
-                if fsf and fsf.IsPlaying then fsf:Stop() end
+            if canWalk and figureNew.Figure.Footsteps.IsPlaying then
+                figureNew.Figure.Footsteps:Stop()
+                figureNew.Figure.FootstepsFar:Stop()
             end
         end
     end)
 end)
 
 -- ============================================================
--- ИНТРО
+-- ИНТРО (вылезание из трубы)
 -- ============================================================
 local function playIntro()
     if introCD then return end
-    if not IntroAnim or not PipeSlimeAnim then return end
     introCD = true
     canWalk = false
 
@@ -263,18 +122,14 @@ local function playIntro()
     end
     char.HumanoidRootPart.Anchored = true
 
-    local function safeSet(obj, prop, val)
-        if obj then obj[prop] = val end
-    end
-    
-    safeSet(figureNew.FullPipe._SeekCutscene.SlimeDrip1, "Transparency", 0)
-    safeSet(figureNew.FullPipe._SeekCutscene.SlimeDrip2, "Transparency", 0)
-    safeSet(figureNew.FullPipe.GrateCap.Circle, "Transparency", 0)
-    safeSet(figureNew.FullPipe.GrateCap.Grate, "Transparency", 0)
-    safeSet(figureNew.FullPipe.FigurePipe.PipeBase, "Transparency", 0)
-    safeSet(figureNew.SeekRig.SeekPuddle, "Transparency", 0)
+    figureNew.FullPipe._SeekCutscene.SlimeDrip1.Transparency = 0
+    figureNew.FullPipe._SeekCutscene.SlimeDrip2.Transparency = 0
+    figureNew.FullPipe.GrateCap.Circle.Transparency = 0
+    figureNew.FullPipe.GrateCap.Grate.Transparency = 0
+    figureNew.FullPipe.FigurePipe.PipeBase.Transparency = 0
+    figureNew.SeekRig.SeekPuddle.Transparency = 0
 
-    task.spawn(function()
+    spawn(function()
         task.wait(8.11)
         for _, Beam in pairs(figureNew.SeekRig:GetChildren()) do
             if Beam:IsA("Beam") and Beam.Name == "StringCheese" then
@@ -282,7 +137,7 @@ local function playIntro()
             end
         end
     end)
-    task.spawn(function()
+    spawn(function()
         task.wait(10.2)
         for _, Beam in pairs(figureNew.SeekRig:GetChildren()) do
             if Beam:IsA("Beam") and Beam.Name == "StringCheese" then
@@ -298,12 +153,12 @@ local function playIntro()
     task.wait(IntroAnim.Length - 2)
 
     IntroAnim:Stop()
-    safeSet(figureNew.FullPipe._SeekCutscene.SlimeDrip1, "Transparency", 1)
-    safeSet(figureNew.FullPipe._SeekCutscene.SlimeDrip2, "Transparency", 1)
-    safeSet(figureNew.FullPipe.GrateCap.Circle, "Transparency", 1)
-    safeSet(figureNew.FullPipe.GrateCap.Grate, "Transparency", 1)
-    safeSet(figureNew.FullPipe.FigurePipe.PipeBase, "Transparency", 1)
-    safeSet(figureNew.SeekRig.SeekPuddle, "Transparency", 1)
+    figureNew.FullPipe._SeekCutscene.SlimeDrip1.Transparency = 1
+    figureNew.FullPipe._SeekCutscene.SlimeDrip2.Transparency = 1
+    figureNew.FullPipe.GrateCap.Circle.Transparency = 1
+    figureNew.FullPipe.GrateCap.Grate.Transparency = 1
+    figureNew.FullPipe.FigurePipe.PipeBase.Transparency = 1
+    figureNew.SeekRig.SeekPuddle.Transparency = 1
 
     canWalk = true
     if char and char:FindFirstChild("HumanoidRootPart") then
@@ -315,7 +170,7 @@ end
 -- ============================================================
 -- СИНХРОНИЗАЦИЯ + СКРЫТИЕ ИГРОКА
 -- ============================================================
-task.spawn(function()
+spawn(function()
     RunService.RenderStepped:Connect(function()
         local char = LocalPlayer.Character
         if not char then return end
@@ -324,8 +179,7 @@ task.spawn(function()
         if head then head.Transparency = 1 end
 
         local hrp = char:FindFirstChild("HumanoidRootPart")
-        if hrp and figureNew.Parent and figureNew.PrimaryPart then
-            -- ВАЖНО: двигаем через PrimaryPart, чтобы вся модель (и заваренные части) ехали вместе
+        if hrp and figureNew.Parent then
             figureNew:PivotTo(hrp.CFrame)
         end
 
@@ -353,10 +207,8 @@ LocalPlayer:GetMouse().KeyDown:Connect(function(key)
     if key == "r" then
         playIntro()
     elseif key == "t" then
-        if figureNew:FindFirstChild("Figure") and figureNew.Figure:FindFirstChild("Scream") then
-            figureNew.Figure.Scream:Play()
-        end
+        figureNew.Figure.Scream:Play()
     end
 end)
 
-print("[Seek Morph] ✅ Загружен! R — интро, T — крик")
+print("[Seek Morph] Загружен! R — интро, T — крик")
