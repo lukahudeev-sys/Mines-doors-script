@@ -1,214 +1,331 @@
 --[[
-    Seek Morph для Doors
-    Использование:
-      - LocalScript в StarterPlayerScripts
-      - Или через executor: loadstring(game:HttpGet("URL"))()
-    
+    SEEK MORPH — Honcho architecture
     Управление:
-      R — проиграть интро (вылезание из трубы)
-      T — крик (Scream)
-      Ходьба/бег — авто-анимация + шаги
+      R — интро
+      T — крик
+      L — переключить 1/3 лицо
+      C — дистанция камеры (только для 3-го лица)
 --]]
 
-local Players = game:GetService("Players")
+local player = game.Players.LocalPlayer
 local RunService = game:GetService("RunService")
-local LocalPlayer = Players.LocalPlayer
+local UserInputService = game:GetService("UserInputService")
 
--- Защита от повторного морфа
-if _G.SeekMorphActive then
-    warn("[Seek Morph] Уже активен!")
-    return
-end
-_G.SeekMorphActive = true
+-- ================== НАСТРОЙКА ==================
+local SEEK_ASSET = "rbxassetid://86341229891935"
+local DOORS_TEST_PLACE_ID = 6627207668
+local heightOffset = 3
+local customWalkSpeed = 45
+local customJumpPower = 50
 
--- ============================================================
--- НАСТРОЙКА
--- ============================================================
-local SEEK_ASSET = "rbxassetid://86341229891935" -- модель Seek
-local DOORS_TEST_PLACE_ID = 6627207668           -- тестовый плейс Доорс
+local cameraDistances = {12, 16, 20}
+local cameraDistanceIndex = 1
+local isThirdPerson = true
 
--- ============================================================
--- ЗАГРУЗКА МОДЕЛИ
--- ============================================================
-local ok, figureNew = pcall(function()
-    return game:GetObjects(SEEK_ASSET)[1]
-end)
+-- ================== СОСТОЯНИЕ ==================
+local morph = nil
+local rootWeld, headWeld = nil, nil
+local morphRootPart, morphHeadPart = nil, nil
+local originalCharacter, originalRootPart, originalHumanoid, originalHeadPart
+local originalWalkSpeed, originalJumpPower, originalJumpHeight = 16, 50, 7.2
+local enforceLoop, movementLoop, inputConnection
+local WalkAnim, IntroAnim, PipeSlimeAnim
+local canWalk, introCD = true, false
+local lastMoveState = nil
+local runTrack, idleTrack = nil, nil
 
-if not ok or not figureNew then
-    warn("[Seek Morph] Не удалось загрузить модель Seek. Проверь asset id.")
-    _G.SeekMorphActive = false
-    return
-end
+-- ================== CLEANUP ==================
+local function cleanupMorph()
+    if inputConnection then inputConnection:Disconnect() end
+    if enforceLoop then enforceLoop:Disconnect() end
+    if movementLoop then movementLoop:Disconnect() end
+    if WalkAnim then WalkAnim:Stop() end
+    if IntroAnim then IntroAnim:Stop() end
+    if runTrack then runTrack:Stop() end
+    if idleTrack then idleTrack:Stop() end
 
-local isTestPlace = (game.GameId == DOORS_TEST_PLACE_ID)
-local canWalk = true
-local introCD = false
+    local camera = workspace.CurrentCamera
+    if camera then camera.CameraType = Enum.CameraType.Custom end
 
-figureNew.Parent = workspace
-
--- ============================================================
--- АНИМАЦИИ
--- ============================================================
-local IntroAnim, PipeSlimeAnim, WalkAnim
-
-if isTestPlace then
-    figureNew.SeekMusic.Intro.SoundId = "rbxassetid://138877504428539"
-    IntroAnim = figureNew.SeekRig.AnimationController.Animator:LoadAnimation(figureNew.AnimationsTest.minesintro)
-    WalkAnim = figureNew.SeekRig.AnimationController.Animator:LoadAnimation(figureNew.AnimationsTest.run)
-    PipeSlimeAnim = figureNew.FullPipe._SeekCutscene.AnimationController:LoadAnimation(figureNew.FullPipe._SeekCutscene.AnimationP)
-else
-    IntroAnim = figureNew.SeekRig.AnimationController.Animator:LoadAnimation(figureNew.Animations.minesintro)
-    WalkAnim = figureNew.SeekRig.AnimationController.Animator:LoadAnimation(figureNew.Animations.run)
-    PipeSlimeAnim = figureNew.FullPipe._SeekCutscene.AnimationController:LoadAnimation(figureNew.FullPipe._SeekCutscene.Animation)
-end
-
-WalkAnim:Play()
-WalkAnim:AdjustSpeed(0)
-
--- ============================================================
--- ШАГИ
--- ============================================================
-spawn(function()
-    while figureNew.Parent do
-        task.wait()
-        if canWalk == false then
-            figureNew.Figure.Footsteps:Stop()
-            figureNew.Figure.FootstepsFar:Stop()
-        end
-        if figureNew.Figure.Footsteps.IsPlaying and not figureNew.Figure.FootstepsFar.IsPlaying then
-            figureNew.Figure.FootstepsFar:Play()
-        end
-        if figureNew.Figure.FootstepsFar.IsPlaying and not figureNew.Figure.Footsteps.IsPlaying then
-            figureNew.Figure.Footsteps:Play()
+    if originalCharacter then
+        for _, part in ipairs(originalCharacter:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.Transparency = 0
+                part.CanCollide = true
+            end
         end
     end
-end)
 
--- ============================================================
--- АНИМАЦИЯ ПО СКОРОСТИ
--- ============================================================
-spawn(function()
-    local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
-    local hum = char:WaitForChild("Humanoid")
-    hum.Running:Connect(function(speed)
-        if speed >= 5 then
-            WalkAnim:AdjustSpeed(1)
-            if canWalk and not figureNew.Figure.Footsteps.IsPlaying then
-                figureNew.Figure.Footsteps:Play()
-                figureNew.Figure.FootstepsFar:Play()
+    if originalHumanoid then
+        originalHumanoid.WalkSpeed = originalWalkSpeed
+        originalHumanoid.JumpPower = originalJumpPower
+        originalHumanoid.JumpHeight = originalJumpHeight
+    end
+
+    if morph then morph:Destroy() morph = nil end
+end
+
+-- ================== ЗАГРУЗКА ==================
+local function loadModel()
+    local objects = game:GetObjects(SEEK_ASSET)
+    return objects[1]
+end
+
+local function applyMorph()
+    if morph then cleanupMorph() end
+
+    morph = loadModel()
+    if not morph then warn("[Seek] Модель не загружена") return end
+
+    local isTestPlace = (game.GameId == DOORS_TEST_PLACE_ID)
+
+    originalCharacter = player.Character or player.CharacterAdded:Wait()
+    originalRootPart = originalCharacter:WaitForChild("HumanoidRootPart")
+    originalHumanoid = originalCharacter:WaitForChild("Humanoid")
+    originalHeadPart = originalCharacter:FindFirstChild("Head")
+
+    if not originalRootPart or not originalHumanoid then return end
+
+    originalWalkSpeed = originalHumanoid.WalkSpeed
+    originalJumpPower = originalHumanoid.JumpPower
+    originalJumpHeight = originalHumanoid.JumpHeight
+
+    originalHumanoid.WalkSpeed = customWalkSpeed
+    originalHumanoid.JumpPower = customJumpPower
+
+    -- Удаляем Humanoid модели если есть
+    local morphHumanoid = morph:FindFirstChildWhichIsA("Humanoid")
+    if morphHumanoid then morphHumanoid:Destroy() end
+
+    -- Отключаем физику всех частей
+    for _, part in ipairs(morph:GetDescendants()) do
+        if part:IsA("BasePart") then
+            part.Anchored = false
+            part.CanCollide = false
+            part.Massless = true
+        end
+    end
+
+    -- 🔑 КОРЕНЬ — ищем как в Honcho
+    morphRootPart = morph:FindFirstChild("HumanoidRootPart", true)
+        or morph:FindFirstChild("RootPart", true)
+        or morph:FindFirstChild("SeekRig", true)
+        or morph:FindFirstChild("Root", true)
+        or morph:FindFirstChild("Torso", true)
+
+    if not morphRootPart then
+        -- Создаём если нет
+        morphRootPart = Instance.new("Part")
+        morphRootPart.Name = "HumanoidRootPart"
+        morphRootPart.Size = Vector3.new(2, 1, 1)
+        morphRootPart.Anchored = false
+        morphRootPart.CanCollide = false
+        morphRootPart.Transparency = 1
+        morphRootPart.Parent = morph
+    end
+    morph.PrimaryPart = morphRootPart
+
+    -- 🔑 ГОЛОВА — как в Honcho (для камеры)
+    morphHeadPart = morph:FindFirstChild("Head", true)
+    if not morphHeadPart then
+        morphHeadPart = Instance.new("Part")
+        morphHeadPart.Name = "Head"
+        morphHeadPart.Size = Vector3.new(1, 1, 1)
+        morphHeadPart.Anchored = false
+        morphHeadPart.CanCollide = false
+        morphHeadPart.Transparency = 1
+        morphHeadPart.Parent = morph
+    end
+
+    morph.Parent = workspace
+
+    -- Скрываем игрока
+    for _, part in ipairs(originalCharacter:GetDescendants()) do
+        if part:IsA("BasePart") then
+            part.Transparency = 1
+            part.CanCollide = false
+        end
+    end
+
+    -- WELD корня модели к HRP игрока (как в Honcho)
+    rootWeld = Instance.new("Weld")
+    rootWeld.Part0 = originalRootPart
+    rootWeld.Part1 = morphRootPart
+    rootWeld.C0 = CFrame.new(0, heightOffset, 0)
+    rootWeld.Parent = originalRootPart
+
+    -- WELD головы модели к голове игрока (для камеры, как в Honcho)
+    headWeld = Instance.new("Weld")
+    headWeld.Part0 = originalHeadPart or originalRootPart
+    headWeld.Part1 = morphHeadPart
+    local headWeldOffset = morphHeadPart.Position - (originalHeadPart and originalHeadPart.Position or originalRootPart.Position)
+    headWeld.C0 = CFrame.new(headWeldOffset)
+    headWeld.Parent = headWeld.Part0
+
+    -- Камера Scriptable
+    local camera = workspace.CurrentCamera
+    if camera then camera.CameraType = Enum.CameraType.Scriptable end
+
+    -- ================== АНИМАЦИИ ==================
+    task.spawn(function()
+        task.wait(0.5)
+        pcall(function()
+            if isTestPlace then
+                morph.SeekMusic.Intro.SoundId = "rbxassetid://138877504428539"
+                IntroAnim = morph.SeekRig.AnimationController.Animator:LoadAnimation(morph.AnimationsTest.minesintro)
+                WalkAnim = morph.SeekRig.AnimationController.Animator:LoadAnimation(morph.AnimationsTest.run)
+                PipeSlimeAnim = morph.FullPipe._SeekCutscene.AnimationController:LoadAnimation(morph.FullPipe._SeekCutscene.AnimationP)
+            else
+                IntroAnim = morph.SeekRig.AnimationController.Animator:LoadAnimation(morph.Animations.minesintro)
+                WalkAnim = morph.SeekRig.AnimationController.Animator:LoadAnimation(morph.Animations.run)
+                PipeSlimeAnim = morph.FullPipe._SeekCutscene.AnimationController:LoadAnimation(morph.FullPipe._SeekCutscene.Animation)
             end
-        else
+            WalkAnim:Play()
             WalkAnim:AdjustSpeed(0)
-            if canWalk and figureNew.Figure.Footsteps.IsPlaying then
-                figureNew.Figure.Footsteps:Stop()
-                figureNew.Figure.FootstepsFar:Stop()
+            print("[Seek] Анимации OK")
+        end)
+    end)
+
+    -- ================== ШАГИ ==================
+    task.spawn(function()
+        while morph and morph.Parent do
+            task.wait()
+            if morph:FindFirstChild("Figure") then
+                local fs = morph.Figure:FindFirstChild("Footsteps")
+                local fsf = morph.Figure:FindFirstChild("FootstepsFar")
+                if fs and fsf then
+                    if canWalk == false then fs:Stop(); fsf:Stop() end
+                    if fs.IsPlaying and not fsf.IsPlaying then fsf:Play() end
+                    if fsf.IsPlaying and not fs.IsPlaying then fs:Play() end
+                end
             end
         end
     end)
-end)
 
--- ============================================================
--- ИНТРО (вылезание из трубы)
--- ============================================================
-local function playIntro()
-    if introCD then return end
-    introCD = true
-    canWalk = false
+    -- ================== АНИМАЦИЯ ХОДЬБЫ ==================
+    task.spawn(function()
+        originalHumanoid.Running:Connect(function(speed)
+            if not WalkAnim then return end
+            if speed >= 5 then
+                WalkAnim:AdjustSpeed(1)
+                if canWalk and morph:FindFirstChild("Figure") then
+                    local fs = morph.Figure:FindFirstChild("Footsteps")
+                    local fsf = morph.Figure:FindFirstChild("FootstepsFar")
+                    if fs and not fs.IsPlaying then fs:Play() end
+                    if fsf and not fsf.IsPlaying then fsf:Play() end
+                end
+            else
+                WalkAnim:AdjustSpeed(0)
+                if canWalk and morph:FindFirstChild("Figure") then
+                    local fs = morph.Figure:FindFirstChild("Footsteps")
+                    local fsf = morph.Figure:FindFirstChild("FootstepsFar")
+                    if fs and fs.IsPlaying then fs:Stop() end
+                    if fsf and fsf.IsPlaying then fsf:Stop() end
+                end
+            end
+        end)
+    end)
 
-    local char = LocalPlayer.Character
-    if not char or not char:FindFirstChild("HumanoidRootPart") then
+    -- ================== ИНТРО ==================
+    local function playIntro()
+        if introCD or not IntroAnim or not PipeSlimeAnim then return end
+        introCD = true
+        canWalk = false
+        originalRootPart.Anchored = true
+
+        local function safeSet(o, p, v) if o then o[p] = v end end
+
+        safeSet(morph.FullPipe._SeekCutscene.SlimeDrip1, "Transparency", 0)
+        safeSet(morph.FullPipe._SeekCutscene.SlimeDrip2, "Transparency", 0)
+        safeSet(morph.FullPipe.GrateCap.Circle, "Transparency", 0)
+        safeSet(morph.FullPipe.GrateCap.Grate, "Transparency", 0)
+        safeSet(morph.FullPipe.FigurePipe.PipeBase, "Transparency", 0)
+        safeSet(morph.SeekRig.SeekPuddle, "Transparency", 0)
+
+        task.spawn(function()
+            task.wait(8.11)
+            for _, B in pairs(morph.SeekRig:GetChildren()) do
+                if B:IsA("Beam") and B.Name == "StringCheese" then B.Enabled = true end
+            end
+        end)
+        task.spawn(function()
+            task.wait(10.2)
+            for _, B in pairs(morph.SeekRig:GetChildren()) do
+                if B:IsA("Beam") and B.Name == "StringCheese" then B.Enabled = false end
+            end
+        end)
+
+        IntroAnim:Play()
+        PipeSlimeAnim:Play()
+        morph.SeekMusic.Intro:Play()
+
+        task.wait(IntroAnim.Length - 2)
+
+        IntroAnim:Stop()
+        safeSet(morph.FullPipe._SeekCutscene.SlimeDrip1, "Transparency", 1)
+        safeSet(morph.FullPipe._SeekCutscene.SlimeDrip2, "Transparency", 1)
+        safeSet(morph.FullPipe.GrateCap.Circle, "Transparency", 1)
+        safeSet(morph.FullPipe.GrateCap.Grate, "Transparency", 1)
+        safeSet(morph.FullPipe.FigurePipe.PipeBase, "Transparency", 1)
+        safeSet(morph.SeekRig.SeekPuddle, "Transparency", 1)
+
+        canWalk = true
+        originalRootPart.Anchored = false
         introCD = false
-        return
     end
-    char.HumanoidRootPart.Anchored = true
 
-    figureNew.FullPipe._SeekCutscene.SlimeDrip1.Transparency = 0
-    figureNew.FullPipe._SeekCutscene.SlimeDrip2.Transparency = 0
-    figureNew.FullPipe.GrateCap.Circle.Transparency = 0
-    figureNew.FullPipe.GrateCap.Grate.Transparency = 0
-    figureNew.FullPipe.FigurePipe.PipeBase.Transparency = 0
-    figureNew.SeekRig.SeekPuddle.Transparency = 0
+    -- ================== КАМЕРА + ЛОГИКА (как Honcho) ==================
+    enforceLoop = RunService.RenderStepped:Connect(function()
+        if rootWeld and rootWeld.Parent then
+            rootWeld.C0 = CFrame.new(0, heightOffset, 0)
+        end
 
-    spawn(function()
-        task.wait(8.11)
-        for _, Beam in pairs(figureNew.SeekRig:GetChildren()) do
-            if Beam:IsA("Beam") and Beam.Name == "StringCheese" then
-                Beam.Enabled = true
+        -- Камера как в Honcho
+        if morphHeadPart and morphHeadPart:IsDescendantOf(workspace) and camera then
+            local lookVector = camera.CFrame.LookVector
+            local upVector = camera.CFrame.UpVector
+            local headPos = morphHeadPart.Position
+
+            if isThirdPerson then
+                local dist = cameraDistances[cameraDistanceIndex]
+                local camPos = headPos - (lookVector * dist) + Vector3.new(0, 2, 0)
+                camera.CFrame = CFrame.lookAt(camPos, headPos, upVector)
+            else
+                local offset = Vector3.new(0, 0.2, -0.5)
+                local targetPosition = morphHeadPart.CFrame:PointToWorldSpace(offset)
+                camera.CFrame = CFrame.lookAt(targetPosition, targetPosition + lookVector, upVector)
             end
         end
     end)
-    spawn(function()
-        task.wait(10.2)
-        for _, Beam in pairs(figureNew.SeekRig:GetChildren()) do
-            if Beam:IsA("Beam") and Beam.Name == "StringCheese" then
-                Beam.Enabled = false
+
+    -- ================== УПРАВЛЕНИЕ ==================
+    inputConnection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if gameProcessed then return end
+        if input.UserInputType ~= Enum.UserInputType.Keyboard then return end
+
+        local key = input.KeyCode
+        if key == Enum.KeyCode.R then
+            playIntro()
+        elseif key == Enum.KeyCode.T then
+            if morph:FindFirstChild("Figure") and morph.Figure:FindFirstChild("Scream") then
+                morph.Figure.Scream:Play()
             end
+        elseif key == Enum.KeyCode.L then
+            isThirdPerson = not isThirdPerson
+            print("[Seek] Камера:", isThirdPerson and "3-е лицо" or "1-е лицо")
+        elseif key == Enum.KeyCode.C then
+            cameraDistanceIndex = cameraDistanceIndex + 1
+            if cameraDistanceIndex > #cameraDistances then cameraDistanceIndex = 1 end
+            print("[Seek] Дистанция:", cameraDistances[cameraDistanceIndex])
         end
     end)
-
-    IntroAnim:Play()
-    PipeSlimeAnim:Play()
-    figureNew.SeekMusic.Intro:Play()
-
-    task.wait(IntroAnim.Length - 2)
-
-    IntroAnim:Stop()
-    figureNew.FullPipe._SeekCutscene.SlimeDrip1.Transparency = 1
-    figureNew.FullPipe._SeekCutscene.SlimeDrip2.Transparency = 1
-    figureNew.FullPipe.GrateCap.Circle.Transparency = 1
-    figureNew.FullPipe.GrateCap.Grate.Transparency = 1
-    figureNew.FullPipe.FigurePipe.PipeBase.Transparency = 1
-    figureNew.SeekRig.SeekPuddle.Transparency = 1
-
-    canWalk = true
-    if char and char:FindFirstChild("HumanoidRootPart") then
-        char.HumanoidRootPart.Anchored = false
-    end
-    introCD = false
 end
 
--- ============================================================
--- СИНХРОНИЗАЦИЯ + СКРЫТИЕ ИГРОКА
--- ============================================================
-spawn(function()
-    RunService.RenderStepped:Connect(function()
-        local char = LocalPlayer.Character
-        if not char then return end
-
-        local head = char:FindFirstChild("Head")
-        if head then head.Transparency = 1 end
-
-        local hrp = char:FindFirstChild("HumanoidRootPart")
-        if hrp and figureNew.Parent then
-            figureNew:PivotTo(hrp.CFrame)
-        end
-
-        for _, v in pairs(char:GetChildren()) do
-            if v:IsA("BasePart") then
-                v.LocalTransparencyModifier = 1
-                for _, d in pairs(v:GetDescendants()) do
-                    if d:IsA("Decal") or d:IsA("Texture") then
-                        d.Transparency = 1
-                    end
-                end
-            elseif v:IsA("Accessory") then
-                if v:FindFirstChild("Handle") then
-                    v.Handle.Transparency = 1
-                end
-            end
-        end
-    end)
+-- ================== ЗАПУСК ==================
+task.defer(function()
+    applyMorph()
 end)
 
--- ============================================================
--- УПРАВЛЕНИЕ
--- ============================================================
-LocalPlayer:GetMouse().KeyDown:Connect(function(key)
-    if key == "r" then
-        playIntro()
-    elseif key == "t" then
-        figureNew.Figure.Scream:Play()
-    end
+script.Destroying:Connect(function()
+    pcall(cleanupMorph)
 end)
-
-print("[Seek Morph] Загружен! R — интро, T — крик")
