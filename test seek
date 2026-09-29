@@ -1,15 +1,13 @@
 --[[
     Seek Morph для Doors + Third Person Camera
     Управление:
-      R — проиграть интро (вылезание из трубы)
+      R — интро (вылезание из трубы)
       T — крик (Scream)
-      L — переключить 1/3 лицо
-      C — сменить дистанцию камеры
+      L — переключение 1/3 лицо
 --]]
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
 local LocalPlayer = Players.LocalPlayer
 
 if _G.SeekMorphActive then
@@ -24,11 +22,10 @@ _G.SeekMorphActive = true
 local SEEK_ASSET = "rbxassetid://86341229891935"
 local DOORS_TEST_PLACE_ID = 6627207668
 
--- Камера от третьего лица
+-- Настройки камеры (как в Figure morph)
 local isThirdPerson = true
-local CAMERA_DISTANCES = {12, 16, 20}
-local cameraDistanceIndex = 1
-local THIRD_PERSON_HEIGHT = 2
+local thirdPersonDistance = 12
+local thirdPersonHeightOffset = 2
 
 -- ============================================================
 -- ЗАГРУЗКА МОДЕЛИ
@@ -171,85 +168,107 @@ local function playIntro()
 end
 
 -- ============================================================
--- СИНХРОНИЗАЦИЯ + СКРЫТИЕ ИГРОКА + КАМЕРА ОТ ТРЕТЬЕГО ЛИЦА
+-- СИНХРОНИЗАЦИЯ + СКРЫТИЕ + КАМЕРА 3-ГО ЛИЦА (как в Figure morph)
 -- ============================================================
-local camera = workspace.CurrentCamera
-if camera then
-    camera.CameraType = Enum.CameraType.Scriptable
-end
+local renderConnection = RunService.RenderStepped:Connect(function()
+    local character = LocalPlayer.Character
+    if not character then return end
 
-spawn(function()
-    RunService.RenderStepped:Connect(function()
-        local char = LocalPlayer.Character
-        if not char then return end
+    -- Скрываем оригинального персонажа
+    if character:FindFirstChild("Head") then
+        character:FindFirstChild("Head").Transparency = 1
+    end
+    if character:FindFirstChild("Humanoid") then
+        character:FindFirstChild("Humanoid").HipHeight = 2.3
+    end
 
-        local head = char:FindFirstChild("Head")
-        if head then head.Transparency = 1 end
+    -- Привязываем фигуру к HumanoidRootPart
+    local hrp = character:FindFirstChild("HumanoidRootPart")
+    if hrp then
+        figureNew:PivotTo(hrp.CFrame)
+    end
 
-        local hrp = char:FindFirstChild("HumanoidRootPart")
-        if hrp and figureNew.Parent then
-            figureNew:PivotTo(hrp.CFrame)
-        end
-
-        for _, v in pairs(char:GetChildren()) do
-            if v:IsA("BasePart") then
-                v.LocalTransparencyModifier = 1
-                for _, d in pairs(v:GetDescendants()) do
-                    if d:IsA("Decal") or d:IsA("Texture") then
-                        d.Transparency = 1
-                    end
-                end
-            elseif v:IsA("Accessory") then
-                if v:FindFirstChild("Handle") then
-                    v.Handle.Transparency = 1
+    -- Скрываем части персонажа
+    for _, v in pairs(character:GetChildren()) do
+        if v:IsA("BasePart") then
+            v.LocalTransparencyModifier = 1
+            for _, dadada in pairs(v:GetDescendants()) do
+                if dadada:IsA("Decal") or dadada:IsA("Texture") then
+                    dadada.Transparency = 1
                 end
             end
-        end
-
-        -- 🎥 КАМЕРА ОТ ТРЕТЬЕГО ЛИЦА
-        if camera and figureNew and figureNew.Parent then
-            local morphHead = figureNew:FindFirstChild("Head", true)
-            if not morphHead then
-                morphHead = figureNew:FindFirstChildWhichIsA("BasePart")
-            end
-
-            if morphHead then
-                if isThirdPerson then
-                    camera.CameraType = Enum.CameraType.Scriptable
-                    local lookVector = camera.CFrame.LookVector
-                    local upVector = camera.CFrame.UpVector
-                    local headPos = morphHead.Position
-                    local dist = CAMERA_DISTANCES[cameraDistanceIndex]
-                    local camPos = headPos - (lookVector * dist) + Vector3.new(0, THIRD_PERSON_HEIGHT, 0)
-                    camera.CFrame = CFrame.lookAt(camPos, headPos, upVector)
-                else
-                    camera.CameraType = Enum.CameraType.Custom
-                end
+        elseif v:IsA("Accessory") then
+            if v:FindFirstChild("Handle") then
+                v.Handle.Transparency = 1
             end
         end
-    end)
+    end
+
+    -- Камера от третьего лица
+    local camera = workspace.CurrentCamera
+    if camera and figureNew and figureNew.Parent then
+        local morphHead = figureNew:FindFirstChild("Head", true)
+        if not morphHead then
+            morphHead = figureNew:FindFirstChildWhichIsA("BasePart")
+        end
+
+        if morphHead then
+            if isThirdPerson then
+                camera.CameraType = Enum.CameraType.Scriptable
+                local lookVector = camera.CFrame.LookVector
+                local upVector = camera.CFrame.UpVector
+                local headPos = morphHead.Position
+                local camPos = headPos - (lookVector * thirdPersonDistance) + Vector3.new(0, thirdPersonHeightOffset, 0)
+                camera.CFrame = CFrame.lookAt(camPos, headPos, upVector)
+            else
+                camera.CameraType = Enum.CameraType.Custom
+            end
+        end
+    end
 end)
+
+-- ============================================================
+-- CLEANUP
+-- ============================================================
+_G.SeekMorphCleanup = function()
+    if renderConnection then
+        renderConnection:Disconnect()
+        renderConnection = nil
+    end
+
+    local camera = workspace.CurrentCamera
+    if camera then
+        camera.CameraType = Enum.CameraType.Custom
+    end
+
+    if figureNew then
+        figureNew:Destroy()
+        figureNew = nil
+    end
+
+    _G.SeekMorphActive = false
+    _G.SeekMorphCleanup = nil
+end
 
 -- ============================================================
 -- УПРАВЛЕНИЕ
 -- ============================================================
-UserInputService.InputBegan:Connect(function(input, processed)
-    if processed then return end
-    if input.UserInputType ~= Enum.UserInputType.Keyboard then return end
-
-    local key = input.KeyCode
-    if key == Enum.KeyCode.R then
+LocalPlayer:GetMouse().KeyDown:Connect(function(key)
+    if key == "r" then
         playIntro()
-    elseif key == Enum.KeyCode.T then
+    elseif key == "t" then
         figureNew.Figure.Scream:Play()
-    elseif key == Enum.KeyCode.L then
+    elseif key == "l" then
+        -- Переключение камеры от третьего лица
         isThirdPerson = not isThirdPerson
+        if not isThirdPerson then
+            local camera = workspace.CurrentCamera
+            if camera then
+                camera.CameraType = Enum.CameraType.Custom
+            end
+        end
         print("[Seek] Камера:", isThirdPerson and "3-е лицо" or "1-е лицо")
-    elseif key == Enum.KeyCode.C then
-        cameraDistanceIndex = cameraDistanceIndex + 1
-        if cameraDistanceIndex > #CAMERA_DISTANCES then cameraDistanceIndex = 1 end
-        print("[Seek] Дистанция:", CAMERA_DISTANCES[cameraDistanceIndex])
     end
 end)
 
-print("[Seek Morph] Загружен! R — интро, T — крик, L — камера, C — дистанция")
+print("[Seek Morph] Загружен! R — интро, T — крик, L — камера")
