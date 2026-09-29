@@ -7,11 +7,10 @@ mspaint.AddonInfo = {
 
 local player = game.Players.LocalPlayer
 
--- ===== Настройки камеры от третьего лица =====
-local isThirdPerson = true -- для Seek включено по умолчанию
+-- Настройки камеры от третьего лица
+local isThirdPerson = false
 local thirdPersonDistance = 12
 local thirdPersonHeightOffset = 2
-local firstPersonOffset = Vector3.new(0, 0.2, -0.5)
 
 local function resetCamera()
     local camera = workspace.CurrentCamera
@@ -20,6 +19,7 @@ local function resetCamera()
     end
 end
 
+-- Очистка предыдущего морфа
 if _G.MorphCleanup then
     pcall(_G.MorphCleanup)
 end
@@ -31,6 +31,7 @@ local function transformIntoFigure()
     _G.TransformedIntoAnyMorph = true
 
     local figureNew = game:GetObjects("rbxassetid://116871580020558")[1]
+    --game:GetObjects("rbxassetid://116871580020558")[1]
     local giggles = {}
     local gigglesDed = Instance.new("Folder",workspace)
     local stompCooldown = false
@@ -213,72 +214,36 @@ local function transformIntoFigure()
 		  end
 	   end)
     end
-
-    local figureRenderConnection = game:GetService("RunService").RenderStepped:Connect(function()
-        local character = player.Character
-        if not character then return end
-
-        if character:FindFirstChild("Head") then
-            character:FindFirstChild("Head").Transparency = 1
-        end
-        if character:FindFirstChild("Humanoid") then
-            character:FindFirstChild("Humanoid").HipHeight = 2.3
-        end
-
-        local hrp = character:FindFirstChild("HumanoidRootPart")
-        if hrp then
-            figureNew:PivotTo(hrp.CFrame)
-        end
-
-        for _, v in pairs(character:GetChildren()) do
-            if v:IsA("BasePart") then
-                v.LocalTransparencyModifier = 1
-                for _, dadada in pairs(v:GetDescendants()) do
-                    if dadada:IsA("Decal") or dadada:IsA("Texture") then
-                        dadada.Transparency = 1
-                    end
-                end
-            elseif v:IsA("Accessory") then
-                if v:FindFirstChild("Handle") then
-                    v.Handle.Transparency = 1
-                end
-            end
-        end
-
-        -- Камера для Figure
-        local camera = workspace.CurrentCamera
-        if camera and figureNew and figureNew.Parent then
-            local morphHead = figureNew:FindFirstChild("Head", true) or figureNew:FindFirstChildWhichIsA("BasePart")
-            if morphHead then
-                if isThirdPerson then
-                    camera.CameraType = Enum.CameraType.Scriptable
-                    local lookVector = camera.CFrame.LookVector
-                    local upVector = camera.CFrame.UpVector
-                    local headPos = morphHead.Position
-                    local camPos = headPos - (lookVector * thirdPersonDistance) + Vector3.new(0, thirdPersonHeightOffset, 0)
-                    camera.CFrame = CFrame.lookAt(camPos, headPos, upVector)
-                else
-                    camera.CameraType = Enum.CameraType.Custom
-                end
-            end
-        end
+    spawn(function()
+	   game:GetService("RunService").RenderStepped:Connect(function()
+		  if game.Players.LocalPlayer.Character:FindFirstChild("Head") then
+			 game.Players.LocalPlayer.Character:FindFirstChild("Head").Transparency = 1
+		  end
+		  if game.Players.LocalPlayer.Character:FindFirstChild("Humanoid") then
+			 game.Players.LocalPlayer.Character:FindFirstChild("Humanoid").HipHeight = 2.3
+		  end
+		  figureNew:PivotTo(game.Players.LocalPlayer.Character:WaitForChild("HumanoidRootPart").CFrame)
+		  for _, v in pairs(game.Players.LocalPlayer.Character:GetChildren()) do
+			 if v:IsA("BasePart") then
+				v.LocalTransparencyModifier = 1
+				for _, dadada in pairs(v:GetDescendants()) do
+				    if dadada:IsA("Decal") or dadada:IsA("Texture") then
+					   dadada.Transparency = 1
+				    end
+			    end
+			 elseif v:IsA("Accessory") then
+				if v:FindFirstChild("Handle") then
+				    v.Handle.Transparency = 1
+				end
+			 end
+		  end
+	   end)
     end)
-
-    _G.MorphCleanup = function()
-        if figureRenderConnection then
-            figureRenderConnection:Disconnect()
-            figureRenderConnection = nil
-        end
-        resetCamera()
-        if figureNew then figureNew:Destroy() figureNew = nil end
-        if gigglesDed then gigglesDed:Destroy() gigglesDed = nil end
-        _G.TransformedIntoAnyMorph = false
-        _G.MorphCleanup = nil
-    end
 
     workspace.ChildAdded:Connect(function(giggle)
 	   checkIfIsAGiggleRagdoll(giggle)
     end)
+
 
     game.Players.LocalPlayer:GetMouse().KeyDown:Connect(function(key)
 	   if key == "r" then
@@ -298,6 +263,8 @@ local function transformIntoGloombat()
 
     local figureNew = game:GetObjects("rbxassetid://72951473062980")[1]
     local testingPlace = false
+    --game:GetObjects("rbxassetid://72951473062980")[1]
+
     figureNew.Parent = workspace
 
     local IdleAnim
@@ -376,6 +343,8 @@ local function transformIntoRush()
 
     local figureNew = game:GetObjects("rbxassetid://100327482330650")[1]
     local testingPlace = false
+    --game:GetObjects("rbxassetid://100327482330650")[1]
+
     figureNew.Parent = workspace
 
     if game.GameId == 6627207668 then
@@ -450,6 +419,8 @@ local function transformIntoAmbush()
 
     local figureNew = game:GetObjects("rbxassetid://98266611233960")[1]
     local testingPlace = false
+    --game:GetObjects("rbxassetid://98266611233960")[1]
+
     figureNew.Parent = workspace
 
     if game.GameId == 6627207668 then
@@ -503,9 +474,7 @@ local function transformIntoAmbush()
     end)
 end
 
--- =====================================================
--- SEEK MORPH — с полноценной камерой от третьего лица
--- =====================================================
+-- === SEEK с камерой от третьего лица ===
 local function transformIntoSeek()
     if _G.TransformedIntoAnyMorph == true then
 	   return
@@ -516,6 +485,7 @@ local function transformIntoSeek()
     local testingPlace = false
     local canWalk = true
     local introCD = false
+    --game:GetObjects("rbxassetid://86341229891935")[1]
 
     figureNew.Parent = workspace
 
@@ -624,9 +594,45 @@ local function transformIntoSeek()
 	   end
     end
 
-    -- === Главный RenderStepped: движение фигуры + камера от третьего лица ===
+    -- === RenderStepped с движением фигуры + камера от третьего лица ===
     local seekRenderConnection = game:GetService("RunService").RenderStepped:Connect(function()
-        local character = player.Character
+        local character = game.Players.LocalPlayer.Character
         if not character then return end
 
-        if character:FindFirstChild("Head
+        if character:FindFirstChild("Head") then
+            character:FindFirstChild("Head").Transparency = 1
+        end
+
+        local hrp = character:FindFirstChild("HumanoidRootPart")
+        if hrp then
+            figureNew:PivotTo(hrp.CFrame)
+        end
+
+        for _, v in pairs(character:GetChildren()) do
+            if v:IsA("BasePart") then
+                v.LocalTransparencyModifier = 1
+                for _, dadada in pairs(v:GetDescendants()) do
+                    if dadada:IsA("Decal") or dadada:IsA("Texture") then
+                        dadada.Transparency = 1
+                    end
+                end
+            elseif v:IsA("Accessory") then
+                if v:FindFirstChild("Handle") then
+                    v.Handle.Transparency = 1
+                end
+            end
+        end
+
+        -- === Камера от третьего лица для Seek ===
+        local camera = workspace.CurrentCamera
+        if camera and figureNew and figureNew.Parent then
+            -- Ищем голову в риге Seek, иначе fallback на любую BasePart
+            local seekHead = nil
+            if figureNew:FindFirstChild("SeekRig") then
+                seekHead = figureNew.SeekRig:FindFirstChild("Head", true)
+            end
+            if not seekHead then
+                seekHead = figureNew:FindFirstChild("Head", true)
+            end
+            if not seekHead then
+                seekHead = figureNew:FindFirstChil
