@@ -1,10 +1,6 @@
 --[[
-    SEEK MORPH — THIRD PERSON + WELD TO PLAYER
-    Управление:
-      R — интро
-      T — крик
-      L — 1/3 лицо
-      C — дистанция камеры
+    SEEK MORPH — FINAL
+    R - интро | T - крик | L - 1/3 лицо | C - дистанция
 --]]
 
 local Players = game:GetService("Players")
@@ -40,62 +36,58 @@ local canWalk = true
 local introCD = false
 figureNew.Parent = workspace
 
--- ================== СВАРКА + ПРИВЯЗКА К ИГРОКУ ==================
-local morphRoot = nil
-
-local function findPrimaryRoot(model)
-    local c = {"HumanoidRootPart","Torso","UpperTorso","SeekRig","Root","RootPart","Main","Figure"}
-    for _, n in ipairs(c) do
-        local f = model:FindFirstChild(n, true)
-        if f and f:IsA("BasePart") then return f end
-    end
-    for _, v in pairs(model:GetDescendants()) do
-        if v:IsA("BasePart") then return v end
-    end
-end
-
+-- ================== ПРИВЯЗКА К ИГРОКУ ==================
 task.spawn(function()
     task.wait(1)
-    local root = findPrimaryRoot(figureNew)
-    if not root then warn("[Seek] Нет корня"); return end
 
-    morphRoot = root
-    figureNew.PrimaryPart = root
+    -- Ищем корень рига (там где Motor6D / AnimationController)
+    local rig = figureNew:FindFirstChild("SeekRig", true)
+        or figureNew:FindFirstChild("Figure", true)
+        or figureNew:FindFirstChild("HumanoidRootPart", true)
+        or figureNew:FindFirstChild("Torso", true)
+        or figureNew:FindFirstChild("Root", true)
 
-    -- Завариваем все части модели к корню
+    if not rig then
+        for _, v in pairs(figureNew:GetDescendants()) do
+            if v:IsA("BasePart") then rig = v break end
+        end
+    end
+    if not rig then warn("[Seek] Нет корня"); return end
+
+    figureNew.PrimaryPart = rig
+    print("[Seek] PrimaryPart:", rig:GetFullName())
+
+    -- Настраиваем физику всех частей (НЕ трогаем сварки и Motor6D!)
     for _, part in ipairs(figureNew:GetDescendants()) do
-        if part:IsA("BasePart") and part ~= root then
-            for _, c in pairs(part:GetChildren()) do
-                if c:IsA("Weld") or c:IsA("WeldConstraint") or c:IsA("Snap") or c:IsA("ManualWeld") then
-                    c:Destroy()
-                end
-            end
-            local w = Instance.new("WeldConstraint")
-            w.Part0 = part
-            w.Part1 = root
-            w.Parent = part
+        if part:IsA("BasePart") then
+            part.CanCollide = false
+            part.Anchored = false
+            part.Massless = true
         end
     end
 
-    -- 🔥 Привариваем корень модели к HRP игрока
+    -- Привариваем ТОЛЬКО корень рига к HRP игрока
     local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
     local hrp = char:WaitForChild("HumanoidRootPart")
+
+    local oldWeld = hrp:FindFirstChild("SeekPlayerWeld")
+    if oldWeld then oldWeld:Destroy() end
 
     local playerWeld = Instance.new("Weld")
     playerWeld.Name = "SeekPlayerWeld"
     playerWeld.Part0 = hrp
-    playerWeld.Part1 = root
-    playerWeld.C0 = CFrame.new(0, 3, 0) -- высота модели над игроком
+    playerWeld.Part1 = rig
+    playerWeld.C0 = CFrame.new(0, 3, 0)
     playerWeld.Parent = hrp
 
-    print("[Seek] Модель приварена к игроку")
+    print("[Seek] Привязан к игроку. Анимации целы.")
 end)
 
 -- ================== АНИМАЦИИ ==================
 local IntroAnim, PipeSlimeAnim, WalkAnim
 
 task.spawn(function()
-    task.wait(0.5)
+    task.wait(1.5)
     pcall(function()
         if isTestPlace then
             figureNew.SeekMusic.Intro.SoundId = "rbxassetid://138877504428539"
@@ -109,6 +101,7 @@ task.spawn(function()
         end
         WalkAnim:Play()
         WalkAnim:AdjustSpeed(0)
+        print("[Seek] Анимации загружены")
     end)
 end)
 
@@ -202,7 +195,7 @@ local function playIntro()
     introCD = false
 end
 
--- ================== 🎥 КАМЕРА (HONCHO STYLE) ==================
+-- ================== КАМЕРА ==================
 local camera = workspace.CurrentCamera
 camera.CameraType = Enum.CameraType.Scriptable
 
@@ -221,7 +214,6 @@ UserInputService.InputChanged:Connect(function(input, processed)
     end
 end)
 
--- Скрытие игрока (модель движется через Weld, PivotTo НЕ нужен)
 task.spawn(function()
     RunService.RenderStepped:Connect(function()
         local char = LocalPlayer.Character
@@ -240,7 +232,6 @@ task.spawn(function()
     end)
 end)
 
--- Основной цикл камеры
 task.spawn(function()
     RunService:BindToRenderStep("SeekCam", Enum.RenderPriority.Camera.Value + 1, function(dt)
         local char = LocalPlayer.Character
@@ -252,11 +243,9 @@ task.spawn(function()
         cameraPitch = math.clamp(cameraPitch - math.rad(mouseDelta.Y * MOUSE_SENSITIVITY), math.rad(-70), math.rad(70))
         mouseDelta = Vector2.new(0, 0)
 
-        -- Поворот персонажа по камере
         local lookDir = CFrame.Angles(0, cameraYaw, 0).LookVector
         hrp.CFrame = CFrame.new(hrp.Position, hrp.Position + Vector3.new(lookDir.X, 0, lookDir.Z))
 
-        -- Опорная точка камеры
         local focusPos = hrp.Position + Vector3.new(0, CAMERA_HEIGHT, 0)
         local rotCF = CFrame.Angles(0, cameraYaw, 0) * CFrame.Angles(cameraPitch, 0, 0)
 
@@ -277,19 +266,16 @@ UserInputService.InputBegan:Connect(function(input, processed)
     if input.UserInputType ~= Enum.UserInputType.Keyboard then return end
 
     local key = input.KeyCode
-    if key == Enum.KeyCode.R then
-        playIntro()
+    if key == Enum.KeyCode.R then playIntro()
     elseif key == Enum.KeyCode.T then
         if figureNew:FindFirstChild("Figure") and figureNew.Figure:FindFirstChild("Scream") then
             figureNew.Figure.Scream:Play()
         end
     elseif key == Enum.KeyCode.L then
         isThirdPerson = not isThirdPerson
-        print("[Seek] Камера:", isThirdPerson and "3-е лицо" or "1-е лицо")
     elseif key == Enum.KeyCode.C then
         cameraDistanceIndex = cameraDistanceIndex + 1
         if cameraDistanceIndex > #CAMERA_DISTANCES then cameraDistanceIndex = 1 end
-        print("[Seek] Дистанция:", CAMERA_DISTANCES[cameraDistanceIndex])
     end
 end)
 
