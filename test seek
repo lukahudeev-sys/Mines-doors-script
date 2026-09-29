@@ -1,13 +1,10 @@
 --[[
-    Seek Morph для Doors — THIRD PERSON CAMERA (как Honcho)
-    
+    SEEK MORPH — THIRD PERSON (как Honcho)
     Управление:
-      R — интро (вылезание из трубы)
-      T — крик (Scream)
-      L — переключить 1-е / 3-е лицо
-      C — сменить дистанцию камеры (5 / 8 / 12 / 15)
-    
-    Камера работает через Scriptable (как в Honcho морфе)
+      R — интро
+      T — крик
+      L — 1/3 лицо
+      C — дистанция камеры
 --]]
 
 local Players = game:GetService("Players")
@@ -15,39 +12,25 @@ local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local LocalPlayer = Players.LocalPlayer
 
-if _G.SeekMorphActive then
-    warn("[Seek Morph] Уже активен!")
-    return
-end
+if _G.SeekMorphActive then warn("Уже активен") return end
 _G.SeekMorphActive = true
 
--- ============================================================
--- НАСТРОЙКА
--- ============================================================
+-- ================== НАСТРОЙКА ==================
 local SEEK_ASSET = "rbxassetid://86341229891935"
 local DOORS_TEST_PLACE_ID = 6627207668
 
--- Камера (как в Honcho)
-local CAMERA_DISTANCES = {5, 8, 12, 15}
-local cameraDistanceIndex = 2      -- стартовая = 8
-local THIRD_PERSON_HEIGHT_OFFSET = 3
-local FIRST_PERSON_HEIGHT_OFFSET = 1.5
-local HEAD_CAMERA_OFFSET = Vector3.new(0, 0.5, -1)
+local CAMERA_DISTANCES = {8, 12, 16}
+local cameraDistanceIndex = 1
+local CAMERA_HEIGHT = 3.5
 local MOUSE_SENSITIVITY = 0.15
-local CAMERA_SMOOTH = 0.2
-
+local CAMERA_SMOOTH = 0.25
 local isThirdPerson = true
 local cameraYaw, cameraPitch = 0, 0
 
--- ============================================================
--- ЗАГРУЗКА
--- ============================================================
-local ok, figureNew = pcall(function()
-    return game:GetObjects(SEEK_ASSET)[1]
-end)
-
+-- ================== ЗАГРУЗКА ==================
+local ok, figureNew = pcall(function() return game:GetObjects(SEEK_ASSET)[1] end)
 if not ok or not figureNew then
-    warn("[Seek Morph] Не удалось загрузить модель Seek.")
+    warn("[Seek] Модель не загружена")
     _G.SeekMorphActive = false
     return
 end
@@ -55,22 +38,18 @@ end
 local isTestPlace = (game.GameId == DOORS_TEST_PLACE_ID)
 local canWalk = true
 local introCD = false
-
 figureNew.Parent = workspace
 
--- ============================================================
--- ФИКС СВАРОК (чтобы голова не летала)
--- ============================================================
+-- ================== СВАРКА ВСЕХ ЧАСТЕЙ ==================
 local function findPrimaryRoot(model)
-    local candidates = {"HumanoidRootPart","Torso","UpperTorso","SeekRig","Root","RootPart","Main","Figure"}
-    for _, name in ipairs(candidates) do
-        local found = model:FindFirstChild(name, true)
-        if found and found:IsA("BasePart") then return found end
+    local c = {"HumanoidRootPart","Torso","UpperTorso","SeekRig","Root","RootPart","Main","Figure"}
+    for _, n in ipairs(c) do
+        local f = model:FindFirstChild(n, true)
+        if f and f:IsA("BasePart") then return f end
     end
     for _, v in pairs(model:GetDescendants()) do
         if v:IsA("BasePart") then return v end
     end
-    return nil
 end
 
 task.spawn(function()
@@ -86,18 +65,16 @@ task.spawn(function()
                     c:Destroy()
                 end
             end
-            local weld = Instance.new("WeldConstraint")
-            weld.Part0 = part
-            weld.Part1 = root
-            weld.Parent = part
+            local w = Instance.new("WeldConstraint")
+            w.Part0 = part
+            w.Part1 = root
+            w.Parent = part
         end
     end
-    print("[Seek Morph] Все части заварены")
+    print("[Seek] Части заварены")
 end)
 
--- ============================================================
--- АНИМАЦИИ
--- ============================================================
+-- ================== АНИМАЦИИ ==================
 local IntroAnim, PipeSlimeAnim, WalkAnim
 
 task.spawn(function()
@@ -118,9 +95,7 @@ task.spawn(function()
     end)
 end)
 
--- ============================================================
--- ШАГИ
--- ============================================================
+-- ================== ШАГИ ==================
 task.spawn(function()
     while figureNew.Parent do
         task.wait()
@@ -128,9 +103,7 @@ task.spawn(function()
             local fs = figureNew.Figure:FindFirstChild("Footsteps")
             local fsf = figureNew.Figure:FindFirstChild("FootstepsFar")
             if fs and fsf then
-                if canWalk == false then
-                    fs:Stop(); fsf:Stop()
-                end
+                if canWalk == false then fs:Stop(); fsf:Stop() end
                 if fs.IsPlaying and not fsf.IsPlaying then fsf:Play() end
                 if fsf.IsPlaying and not fs.IsPlaying then fs:Play() end
             end
@@ -138,9 +111,7 @@ task.spawn(function()
     end
 end)
 
--- ============================================================
--- АНИМАЦИЯ ПО СКОРОСТИ
--- ============================================================
+-- ================== АНИМАЦИЯ ПО СКОРОСТИ ==================
 task.spawn(function()
     local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
     local hum = char:WaitForChild("Humanoid")
@@ -166,22 +137,14 @@ task.spawn(function()
     end)
 end)
 
--- ============================================================
--- ИНТРО
--- ============================================================
-local function safeSet(obj, prop, val)
-    if obj then obj[prop] = val end
-end
+-- ================== ИНТРО ==================
+local function safeSet(o, p, v) if o then o[p] = v end end
 
 local function playIntro()
     if introCD or not IntroAnim or not PipeSlimeAnim then return end
-    introCD = true
-    canWalk = false
-
+    introCD = true; canWalk = false
     local char = LocalPlayer.Character
-    if not char or not char:FindFirstChild("HumanoidRootPart") then
-        introCD = false; return
-    end
+    if not char or not char:FindFirstChild("HumanoidRootPart") then introCD = false; return end
     char.HumanoidRootPart.Anchored = true
 
     safeSet(figureNew.FullPipe._SeekCutscene.SlimeDrip1, "Transparency", 0)
@@ -193,24 +156,21 @@ local function playIntro()
 
     task.spawn(function()
         task.wait(8.11)
-        for _, Beam in pairs(figureNew.SeekRig:GetChildren()) do
-            if Beam:IsA("Beam") and Beam.Name == "StringCheese" then Beam.Enabled = true end
+        for _, B in pairs(figureNew.SeekRig:GetChildren()) do
+            if B:IsA("Beam") and B.Name == "StringCheese" then B.Enabled = true end
         end
     end)
     task.spawn(function()
         task.wait(10.2)
-        for _, Beam in pairs(figureNew.SeekRig:GetChildren()) do
-            if Beam:IsA("Beam") and Beam.Name == "StringCheese" then Beam.Enabled = false end
+        for _, B in pairs(figureNew.SeekRig:GetChildren()) do
+            if B:IsA("Beam") and B.Name == "StringCheese" then B.Enabled = false end
         end
     end)
 
-    IntroAnim:Play()
-    PipeSlimeAnim:Play()
-    figureNew.SeekMusic.Intro:Play()
-
+    IntroAnim:Play(); PipeSlimeAnim:Play(); figureNew.SeekMusic.Intro:Play()
     task.wait(IntroAnim.Length - 2)
-
     IntroAnim:Stop()
+
     safeSet(figureNew.FullPipe._SeekCutscene.SlimeDrip1, "Transparency", 1)
     safeSet(figureNew.FullPipe._SeekCutscene.SlimeDrip2, "Transparency", 1)
     safeSet(figureNew.FullPipe.GrateCap.Circle, "Transparency", 1)
@@ -225,29 +185,22 @@ local function playIntro()
     introCD = false
 end
 
--- ============================================================
--- 🎥 КАМЕРА (как в Honcho) + СИНХРОНИЗАЦИЯ + СКРЫТИЕ ИГРОКА
--- ============================================================
+-- ================== 🎥 КАМЕРА (HONCHO STYLE) ==================
 local camera = workspace.CurrentCamera
-if camera then
-    camera.CameraType = Enum.CameraType.Scriptable
-end
+camera.CameraType = Enum.CameraType.Scriptable
 
--- Инициализация углов камеры из текущего CFrame
 do
-    local look = camera.CFrame.LookVector
-    cameraYaw = math.atan2(-look.X, -look.Z)
-    cameraPitch = math.asin(look.Y)
+    local l = camera.CFrame.LookVector
+    cameraYaw = math.atan2(-l.X, -l.Z)
+    cameraPitch = math.asin(l.Y)
 end
 
--- Мышь
-local mouse = LocalPlayer:GetMouse()
 local mouseDelta = Vector2.new(0, 0)
 
 UserInputService.InputChanged:Connect(function(input, processed)
     if processed then return end
     if input.UserInputType == Enum.UserInputType.MouseMovement then
-        mouseDelta = Vector2.new(input.Delta.X, input.Delta.Y)
+        mouseDelta = mouseDelta + Vector2.new(input.Delta.X, input.Delta.Y)
     end
 end)
 
@@ -256,9 +209,6 @@ task.spawn(function()
     RunService.RenderStepped:Connect(function()
         local char = LocalPlayer.Character
         if not char then return end
-
-        local head = char:FindFirstChild("Head")
-        if head then head.Transparency = 1 end
 
         local hrp = char:FindFirstChild("HumanoidRootPart")
         if hrp and figureNew.Parent and figureNew.PrimaryPart then
@@ -269,91 +219,47 @@ task.spawn(function()
             if v:IsA("BasePart") then
                 v.LocalTransparencyModifier = 1
                 for _, d in pairs(v:GetDescendants()) do
-                    if d:IsA("Decal") or d:IsA("Texture") then
-                        d.Transparency = 1
-                    end
+                    if d:IsA("Decal") or d:IsA("Texture") then d.Transparency = 1 end
                 end
             elseif v:IsA("Accessory") then
-                if v:FindFirstChild("Handle") then
-                    v.Handle.Transparency = 1
-                end
+                if v:FindFirstChild("Handle") then v.Handle.Transparency = 1 end
             end
         end
     end)
 end)
 
--- Цикл камеры (Honcho-style)
+-- Основной цикл камеры
 task.spawn(function()
-    RunService:BindToRenderStep("SeekMorphCamera", Enum.RenderPriority.Camera.Value + 1, function(dt)
+    RunService:BindToRenderStep("SeekCam", Enum.RenderPriority.Camera.Value + 1, function(dt)
         local char = LocalPlayer.Character
         if not char then return end
         local hrp = char:FindFirstChild("HumanoidRootPart")
         if not hrp then return end
 
-        -- Обновляем углы от мыши
         cameraYaw = cameraYaw - math.rad(mouseDelta.X * MOUSE_SENSITIVITY)
-        cameraPitch = math.clamp(
-            cameraPitch - math.rad(mouseDelta.Y * MOUSE_SENSITIVITY),
-            math.rad(-80),
-            math.rad(80)
-        )
+        cameraPitch = math.clamp(cameraPitch - math.rad(mouseDelta.Y * MOUSE_SENSITIVITY), math.rad(-70), math.rad(70))
         mouseDelta = Vector2.new(0, 0)
 
-        -- Поворачиваем персонажа по yaw (чтобы морф смотрел куда камера)
+        -- Поворот персонажа
         local lookDir = CFrame.Angles(0, cameraYaw, 0).LookVector
-        local newHRPCF = CFrame.new(hrp.Position, hrp.Position + Vector3.new(lookDir.X, 0, lookDir.Z))
-        hrp.CFrame = newHRPCF
+        hrp.CFrame = CFrame.new(hrp.Position, hrp.Position + Vector3.new(lookDir.X, 0, lookDir.Z))
 
-        -- Опорная точка — голова морфа (или HRP + offset)
-        local focusPos
-        local morphHead = figureNew:FindFirstChild("Head", true) or figureNew.PrimaryPart
-        if morphHead then
-            focusPos = morphHead.Position + Vector3.new(0, FIRST_PERSON_HEIGHT_OFFSET, 0)
-        else
-            focusPos = hrp.Position + Vector3.new(0, THIRD_PERSON_HEIGHT_OFFSET, 0)
-        end
-
+        -- Опорная точка
+        local focusPos = hrp.Position + Vector3.new(0, CAMERA_HEIGHT, 0)
         local rotCF = CFrame.Angles(0, cameraYaw, 0) * CFrame.Angles(cameraPitch, 0, 0)
 
         if isThirdPerson then
             local dist = CAMERA_DISTANCES[cameraDistanceIndex]
-            local camOffset = rotCF * CFrame.new(0, 0, dist)
-            local targetPos = focusPos + camOffset.Position
-            
-            -- Плавное следование
-            camera.CFrame = camera.CFrame:Lerp(
-                CFrame.new(targetPos, focusPos),
-                CAMERA_SMOOTH
-            )
+            local camPos = focusPos + (rotCF * CFrame.new(0, 0, dist)).Position
+            camera.CFrame = camera.CFrame:Lerp(CFrame.new(camPos, focusPos), CAMERA_SMOOTH)
         else
-            -- От первого лица — смотрим через голову морфа
-            local camPos = focusPos + rotCF * HEAD_CAMERA_OFFSET
-            camera.CFrame = camera.CFrame:Lerp(
-                CFrame.new(camPos, camPos + rotCF.LookVector),
-                CAMERA_SMOOTH
-            )
-        end
-
-        -- Скрываем морф в 1-м лице чтобы не мешал
-        if not isThirdPerson and figureNew.PrimaryPart then
-            for _, part in ipairs(figureNew:GetDescendants()) do
-                if part:IsA("BasePart") then
-                    part.LocalTransparencyModifier = 1
-                end
-            end
-        else
-            for _, part in ipairs(figureNew:GetDescendants()) do
-                if part:IsA("BasePart") then
-                    part.LocalTransparencyModifier = 0
-                end
-            end
+            local camPos = hrp.Position + Vector3.new(0, 2.5, 0)
+            camera.CFrame = camera.CFrame:Lerp(CFrame.new(camPos, camPos + rotCF.LookVector), CAMERA_SMOOTH)
         end
     end)
 end)
 
--- ============================================================
--- УПРАВЛЕНИЕ
--- ============================================================
+-- ================== УПРАВЛЕНИЕ ==================
 UserInputService.InputBegan:Connect(function(input, processed)
     if processed then return end
     if input.UserInputType ~= Enum.UserInputType.Keyboard then return end
@@ -367,25 +273,12 @@ UserInputService.InputBegan:Connect(function(input, processed)
         end
     elseif key == Enum.KeyCode.L then
         isThirdPerson = not isThirdPerson
-        print("[Seek Morph] Камера:", isThirdPerson and "3-е лицо" or "1-е лицо")
+        print("[Seek] Камера:", isThirdPerson and "3-е лицо" or "1-е лицо")
     elseif key == Enum.KeyCode.C then
         cameraDistanceIndex = cameraDistanceIndex + 1
         if cameraDistanceIndex > #CAMERA_DISTANCES then cameraDistanceIndex = 1 end
-        print("[Seek Morph] Дистанция камеры:", CAMERA_DISTANCES[cameraDistanceIndex])
+        print("[Seek] Дистанция:", CAMERA_DISTANCES[cameraDistanceIndex])
     end
 end)
 
--- ============================================================
--- CLEANUP при выходе/респавне
--- ============================================================
-LocalPlayer.CharacterAdded:Connect(function()
-    task.wait(1)
-    if figureNew.Parent then
-        RunService:UnbindFromRenderStep("SeekMorphCamera")
-        if camera then camera.CameraType = Enum.CameraType.Custom end
-        _G.SeekMorphActive = false
-    end
-end)
-
-print("[Seek Morph] ✅ Загружен!")
-print("  R — интро | T — крик | L — 1/3 лицо | C — дистанция")
+print("[Seek] ✅ Загружен! R-T-L-C")
