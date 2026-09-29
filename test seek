@@ -1,5 +1,5 @@
 --[[
-    SEEK MORPH — THIRD PERSON (как Honcho)
+    SEEK MORPH — THIRD PERSON + WELD TO PLAYER
     Управление:
       R — интро
       T — крик
@@ -40,7 +40,9 @@ local canWalk = true
 local introCD = false
 figureNew.Parent = workspace
 
--- ================== СВАРКА ВСЕХ ЧАСТЕЙ ==================
+-- ================== СВАРКА + ПРИВЯЗКА К ИГРОКУ ==================
+local morphRoot = nil
+
 local function findPrimaryRoot(model)
     local c = {"HumanoidRootPart","Torso","UpperTorso","SeekRig","Root","RootPart","Main","Figure"}
     for _, n in ipairs(c) do
@@ -55,9 +57,12 @@ end
 task.spawn(function()
     task.wait(1)
     local root = findPrimaryRoot(figureNew)
-    if not root then return end
+    if not root then warn("[Seek] Нет корня"); return end
+
+    morphRoot = root
     figureNew.PrimaryPart = root
 
+    -- Завариваем все части модели к корню
     for _, part in ipairs(figureNew:GetDescendants()) do
         if part:IsA("BasePart") and part ~= root then
             for _, c in pairs(part:GetChildren()) do
@@ -71,7 +76,19 @@ task.spawn(function()
             w.Parent = part
         end
     end
-    print("[Seek] Части заварены")
+
+    -- 🔥 Привариваем корень модели к HRP игрока
+    local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+    local hrp = char:WaitForChild("HumanoidRootPart")
+
+    local playerWeld = Instance.new("Weld")
+    playerWeld.Name = "SeekPlayerWeld"
+    playerWeld.Part0 = hrp
+    playerWeld.Part1 = root
+    playerWeld.C0 = CFrame.new(0, 3, 0) -- высота модели над игроком
+    playerWeld.Parent = hrp
+
+    print("[Seek] Модель приварена к игроку")
 end)
 
 -- ================== АНИМАЦИИ ==================
@@ -204,16 +221,11 @@ UserInputService.InputChanged:Connect(function(input, processed)
     end
 end)
 
--- Скрытие игрока + синхронизация модели
+-- Скрытие игрока (модель движется через Weld, PivotTo НЕ нужен)
 task.spawn(function()
     RunService.RenderStepped:Connect(function()
         local char = LocalPlayer.Character
         if not char then return end
-
-        local hrp = char:FindFirstChild("HumanoidRootPart")
-        if hrp and figureNew.Parent and figureNew.PrimaryPart then
-            figureNew:PivotTo(hrp.CFrame)
-        end
 
         for _, v in pairs(char:GetChildren()) do
             if v:IsA("BasePart") then
@@ -240,11 +252,11 @@ task.spawn(function()
         cameraPitch = math.clamp(cameraPitch - math.rad(mouseDelta.Y * MOUSE_SENSITIVITY), math.rad(-70), math.rad(70))
         mouseDelta = Vector2.new(0, 0)
 
-        -- Поворот персонажа
+        -- Поворот персонажа по камере
         local lookDir = CFrame.Angles(0, cameraYaw, 0).LookVector
         hrp.CFrame = CFrame.new(hrp.Position, hrp.Position + Vector3.new(lookDir.X, 0, lookDir.Z))
 
-        -- Опорная точка
+        -- Опорная точка камеры
         local focusPos = hrp.Position + Vector3.new(0, CAMERA_HEIGHT, 0)
         local rotCF = CFrame.Angles(0, cameraYaw, 0) * CFrame.Angles(cameraPitch, 0, 0)
 
