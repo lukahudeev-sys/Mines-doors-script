@@ -1,0 +1,32 @@
+-- spawn logic
+local function spawnNearRift()
+
+	local objs = game:GetObjects("rbxassetid://110852226869313")
+	local model = objs[1]
+
+	if not model then
+		warn("failed to load model -_-")
+		return
+	end
+
+	model.Name = "viridis pentagram"
+	model.Parent = workspace
+
+	sanitizeModel(model)
+
+	-- 🎯 получаем позицию игрока
+	local char = player.Character or player.CharacterAdded:Wait()
+	local hrp = char:FindFirstChild("HumanoidRootPart") or char:WaitForChild("HumanoidRootPart", 5)
+
+	local spawnPos
+	if hrp then
+		spawnPos = hrp.Position
+	else
+		warn("HRP не найден, спавн в дефолтной точке")
+		spawnPos = Vector3.new(229, 0, -7)
+	end
+
+	model:PivotTo(CFrame.new(spawnPos))
+end
+
+spawnNearRift()
